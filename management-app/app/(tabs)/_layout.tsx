@@ -1,15 +1,18 @@
 import { Tabs } from 'expo-router';
-import React from 'react';
+import React, { useEffect } from 'react';
 import { Platform } from 'react-native';
 import { Fontisto } from '@expo/vector-icons';
 import { HapticTab } from '@/components/HapticTab';
-import { IconSymbol } from '@/components/ui/IconSymbol';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
+import { initDB } from '../../data/database';
 
 export default function TabLayout() {
   const colorScheme = useColorScheme();
+  useEffect(() => {
+    initDB();
+  }, []);
 
   return (
     <Tabs
@@ -30,14 +33,14 @@ export default function TabLayout() {
         name="settings"
         options={{
           title: 'Configurações',
-          tabBarIcon: ({ color }) => <Fontisto name='player-settings' color={color} size={20}/>,
+          tabBarIcon: ({ color }) => <Fontisto name='player-settings' color={color} size={20} />,
         }}
       />
       <Tabs.Screen
         name="collections"
         options={{
           title: 'Coletas',
-          tabBarIcon: ({ color }) => <Fontisto name='heartbeat' color={color} size={20}/>,
+          tabBarIcon: ({ color }) => <Fontisto name='heartbeat' color={color} size={20} />,
         }}
       />
     </Tabs>

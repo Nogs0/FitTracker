@@ -43,6 +43,9 @@ export default StyleSheet.create({
         opacity: 0.5
     },
     cardList: {
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        alignItems: 'center',
         padding: 10,
         borderRadius: 5,
         backgroundColor: 'rgb(240, 240, 240)',
