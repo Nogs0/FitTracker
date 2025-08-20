@@ -1,18 +1,41 @@
 import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View } from "react-native";
 import stylesGlobal from '../../styles/global';
 import { Feather, FontAwesome } from "@expo/vector-icons";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { Picker } from '@react-native-picker/picker';
 import { useRouter } from 'expo-router';
+import { getAtividades, getUsuarios } from "@/data/database";
 
 export default function StartCollectionScreen() {
     const router = useRouter();
 
+    useEffect(() => {
+        carregarUsuarios();
+        carregarAtividades();
+    }, [])
+    
+    const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
+    const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
+
     const [usuario, setUsuario] = useState<string | undefined>();
     const [atividade, setAtividade] = useState<string | undefined>();
 
-    const startCollection = () => {
-        console.log(`coleta iniciada`);
+    const carregarUsuarios = async () => {
+        const usuarios = await getUsuarios();
+        setListaDeUsuarios(usuarios);
+    };
+
+    const carregarAtividades = async () => {
+        const atividades = await getAtividades();
+        setListaDeAtividades(atividades);
+    };
+
+    const [corIconeCardColeta, setCorIconeCardColeta] = useState<string>('gray');
+    const [titleCardColeta, setTitleCardColeta] = useState<string>('Aguardando informações');
+
+    const iniciarColeta = () => {
+        setCorIconeCardColeta('rgb(78, 136, 237)');
+        setTitleCardColeta('Estrabelecendo conexão');
     }
 
     return (
@@ -49,9 +72,14 @@ export default function StartCollectionScreen() {
                                         onValueChange={(itemValue) => setUsuario(itemValue)}
                                         style={stylesGlobal.pickerStyle}
                                     >
-                                        <Picker.Item label="Java" value="java" />
-                                        <Picker.Item label="JavaScript" value="js" />
-                                        <Picker.Item label="Python" value="python" />
+                                        <Picker.Item label="Selecione um usuário" />
+                                        {
+                                            listaDeUsuarios.map((item, i) => {
+                                                return (
+                                                    <Picker.Item key={i} label={`${item.nome}, ${item.idade}`} value={item.id} />
+                                                )
+                                            })
+                                        }
                                     </Picker>
                                 </View>
                                 <View style={stylesGlobal.inputContainer}>
@@ -61,23 +89,27 @@ export default function StartCollectionScreen() {
                                         onValueChange={(itemValue) => setAtividade(itemValue)}
                                         style={stylesGlobal.pickerStyle}
                                     >
-                                        <Picker.Item label="Java" value="java" />
-                                        <Picker.Item label="JavaScript" value="js" />
-                                        <Picker.Item label="Python" value="python" />
+                                        <Picker.Item label="Selecione uma atividade" />
+                                        {
+                                            listaDeAtividades.map((item, i) => {
+                                                return (
+                                                    <Picker.Item key={i} label={item.nome} value={item.id} />
+                                                )
+                                            })
+                                        }
                                     </Picker>
                                 </View>
                             </View>
                             <TouchableOpacity style={[stylesGlobal.button, stylesGlobal.buttonStartCollection]}
-                                onPress={startCollection}>
+                                onPress={iniciarColeta}>
                                 <Text style={stylesGlobal.buttonLabel}>Iniciar coleta</Text>
                             </TouchableOpacity>
                         </View>
                         <View style={stylesGlobal.card}>
                             <View style={stylesGlobal.titleContainer}>
-                                <FontAwesome name='circle' size={25} color="rgba(139,139,139,1)" />
-                                <Text style={stylesGlobal.titleText}>Configuração da coleta</Text>
+                                <FontAwesome name='circle' size={25} color={corIconeCardColeta} />
+                                <Text style={stylesGlobal.titleText}>{titleCardColeta}</Text>
                             </View>
-                            <Text style={stylesGlobal.subtitleText}>Relatório em tempo real das coletas</Text>
                         </View>
                     </SafeAreaView>
                 </ScrollView>

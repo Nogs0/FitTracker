@@ -23,6 +23,20 @@ export const initDB = async () => {
         nome TEXT NOT NULL
       );
     `);
+
+    // Cria tabela de coletas
+    await db.execAsync(`
+      CREATE TABLE IF NOT EXISTS coletas (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nomeUsuario TEXT NOT NULL,
+        idadeUsuario TEXT NOT NULL,
+        nomeAtividade TEXT NOT NULL,
+        horaInicio TEXT NOT NULL,
+        horaFim TEXT NOT NULL,
+        conexaoEstabelecida INTEGER NOT NULL,
+        qtdDadosRecebidos TEXT NOT NULL
+      );
+    `);
   }
   return db;
 };
@@ -93,4 +107,85 @@ export const updateAtividade = async (id, nome) => {
 export const deleteAtividade = async (id) => {
   const database = await initDB();
   return await database.runAsync("DELETE FROM atividades WHERE id = ?;", [id]);
+};
+
+//
+// ------------------ COLETAS ------------------
+//
+
+// 🔹 Inserir coleta
+export const insertColeta = async (
+  nomeUsuario,
+  idadeUsuario,
+  nomeAtividade,
+  horaInicio,
+  horaFim,
+  conexaoEstabelecida,
+  qtdDadosRecebidos
+) => {
+  const database = await initDB();
+  return await database.runAsync(
+    `INSERT INTO coletas 
+      (nomeUsuario, idadeUsuario, nomeAtividade, horaInicio, horaFim, conexaoEstabelecida, qtdDadosRecebidos) 
+     VALUES (?, ?, ?, ?, ?, ?, ?);`,
+    [
+      nomeUsuario,
+      idadeUsuario,
+      nomeAtividade,
+      horaInicio,
+      horaFim,
+      conexaoEstabelecida,
+      qtdDadosRecebidos,
+    ]
+  );
+};
+
+// 🔹 Buscar todas coletas
+export const getColetas = async () => {
+  const database = await initDB();
+  return await database.getAllAsync("SELECT * FROM coletas;");
+};
+
+// 🔹 Buscar uma coleta por ID
+export const getColetaById = async (id) => {
+  const database = await initDB();
+  return await database.getFirstAsync("SELECT * FROM coletas WHERE id = ?;", [
+    id,
+  ]);
+};
+
+// 🔹 Atualizar coleta
+export const updateColeta = async (
+  id,
+  nomeUsuario,
+  idadeUsuario,
+  nomeAtividade,
+  horaInicio,
+  horaFim,
+  conexaoEstabelecida,
+  qtdDadosRecebidos
+) => {
+  const database = await initDB();
+  return await database.runAsync(
+    `UPDATE coletas 
+        SET nomeUsuario = ?, idadeUsuario = ?, nomeAtividade = ?, 
+            horaInicio = ?, horaFim = ?, conexaoEstabelecida = ?, qtdDadosRecebidos = ?
+      WHERE id = ?;`,
+    [
+      nomeUsuario,
+      idadeUsuario,
+      nomeAtividade,
+      horaInicio,
+      horaFim,
+      conexaoEstabelecida,
+      qtdDadosRecebidos,
+      id,
+    ]
+  );
+};
+
+// 🔹 Excluir coleta
+export const deleteColeta = async (id) => {
+  const database = await initDB();
+  return await database.runAsync("DELETE FROM coletas WHERE id = ?;", [id]);
 };
