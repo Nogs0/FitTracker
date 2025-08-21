@@ -32,9 +32,9 @@ export const initDB = async () => {
         idadeUsuario TEXT NOT NULL,
         nomeAtividade TEXT NOT NULL,
         horaInicio TEXT NOT NULL,
-        horaFim TEXT NOT NULL,
-        conexaoEstabelecida INTEGER NOT NULL,
-        qtdDadosRecebidos TEXT NOT NULL
+        horaFim TEXT,
+        conexaoEstabelecida INTEGER,
+        qtdDadosRecebidos TEXT
       );
     `);
   }
@@ -119,31 +119,31 @@ export const insertColeta = async (
   idadeUsuario,
   nomeAtividade,
   horaInicio,
-  horaFim,
-  conexaoEstabelecida,
-  qtdDadosRecebidos
 ) => {
   const database = await initDB();
-  return await database.runAsync(
+  const result = await database.runAsync(
     `INSERT INTO coletas 
-      (nomeUsuario, idadeUsuario, nomeAtividade, horaInicio, horaFim, conexaoEstabelecida, qtdDadosRecebidos) 
-     VALUES (?, ?, ?, ?, ?, ?, ?);`,
+      (nomeUsuario, idadeUsuario, nomeAtividade, horaInicio) 
+     VALUES (?, ?, ?, ?);`,
     [
       nomeUsuario,
       idadeUsuario,
       nomeAtividade,
-      horaInicio,
-      horaFim,
-      conexaoEstabelecida,
-      qtdDadosRecebidos,
+      horaInicio
     ]
   );
+
+  if (result.changes > 0) {
+    return result.lastInsertRowId; 
+  } else {
+    return null;
+  }
 };
 
 // 🔹 Buscar todas coletas
 export const getColetas = async () => {
   const database = await initDB();
-  return await database.getAllAsync("SELECT * FROM coletas;");
+  return await database.getAllAsync("SELECT * FROM coletas ORDER BY id DESC;");
 };
 
 // 🔹 Buscar uma coleta por ID
@@ -180,6 +180,26 @@ export const updateColeta = async (
       conexaoEstabelecida,
       qtdDadosRecebidos,
       id,
+    ]
+  );
+};
+
+export const finalizarColeta = async (
+  id,
+  horaFim,
+  conexaoEstabelecida,
+  qtdDadosRecebidos
+) => {
+  const database = await initDB();
+  return await database.runAsync(
+    `UPDATE coletas 
+        SET horaFim = ?, conexaoEstabelecida = ?, qtdDadosRecebidos = ?
+      WHERE id = ?;`,
+    [
+      horaFim,
+      conexaoEstabelecida,
+      qtdDadosRecebidos,
+      id
     ]
   );
 };

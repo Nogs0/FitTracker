@@ -4,7 +4,7 @@ export default function SettingsStack() {
   return (
     <Stack>
       <Stack.Screen name="index" options={{ headerShown: false }} />
-      <Stack.Screen name="collectionData" options={{ headerShown: false }} />
+      <Stack.Screen name="startCollection" options={{ headerShown: false }} />
     </Stack>
   );
 }

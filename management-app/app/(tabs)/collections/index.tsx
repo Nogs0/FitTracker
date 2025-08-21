@@ -1,126 +1,95 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { useRouter } from 'expo-router';
-import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, StyleSheet, TouchableOpacity, TouchableWithoutFeedback, View, Text } from 'react-native';
-import stylesGlobal from '../../styles/global';
+import { SafeAreaView, StyleSheet, View, Text, FlatList, TouchableOpacity } from 'react-native';
+import stylesGlobal from '../../../styles/global';
+import { useCallback, useState } from 'react';
+import { deleteColeta, getColetas } from '@/data/database';
+import { useFocusEffect } from 'expo-router';
+import ModalDelete from '@/components/ModalDelete';
 
 export default function CollectionScreen() {
-  const router = useRouter();
-  
+  const [listColetas, setListColetas] = useState<any[]>([]);
+
+  useFocusEffect(
+    useCallback(() => {
+      carregarColetas();
+    }, [])
+  );
+
+  const carregarColetas = async () => {
+    const coletas = await getColetas();
+    setListColetas(coletas);
+  }
+
+  const [modalDeleteColetaVisible, setModalDeleteColetaVisible] = useState(false);
+  const [coletaToDeleteId, setColetaToDeleteId] = useState<number>(0);
+
+  const handleDeleteColeta = async (id: number) => {
+    setModalDeleteColetaVisible(false);
+    await deleteColeta(id);
+    setListColetas([]);
+    await carregarColetas();
+  };
+
+  const excluirColeta = (id: number) => {
+    setColetaToDeleteId(id);
+    setModalDeleteColetaVisible(true);
+  }
+
+  const criarCardColeta = (item: any) => {
+    return (
+      <View style={stylesGlobal.card}>
+        <View style={stylesCollections.containerNamecard}>
+          <View style={{ width: '85%' }}>
+            <Text style={stylesCollections.nameCard}>{item.nomeUsuario}</Text>
+            <Text>{item.idadeUsuario} anos</Text>
+          </View>
+          <TouchableOpacity onPress={() => excluirColeta(item.id)} style={{ padding: 5 }}>
+            <Feather name='trash' color={'gray'} size={20}></Feather>
+          </TouchableOpacity>
+        </View>
+        <Text style={[stylesGlobal.subtitleText,
+        (item.conexaoEstabelecida ? { color: 'green' } : { color: 'red' })]}>{item.conexaoEstabelecida ? 'Conexão estabelecida com sucesso' : 'Conexão não estabelecida'}</Text>
+        <View style={stylesCollections.containerDateTime}>
+          <View style={stylesCollections.containerTextDateTime}>
+            <Ionicons name='calendar-clear-outline' size={14}></Ionicons>
+            <Text>{(new Date(Number(item.horaInicio)).toLocaleDateString('pt-Br'))}</Text>
+          </View>
+        </View>
+        <View style={stylesCollections.containerCardsRelatorio}>
+          <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioRegistros]}>
+            <Text>{item.qtdDadosRecebidos ?? 0}</Text>
+            <Text style={stylesCollections.labelCardRelatorio}>Registros</Text>
+          </View>
+          <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioTempo]}>
+            <Text>{Math.floor((Number(item.horaFim) - Number(item.horaInicio)) / 1000)}s</Text>
+            <Text style={stylesCollections.labelCardRelatorio}>Segundos</Text>
+          </View>
+        </View>
+      </View>
+    );
+  }
+
   return (
-    <KeyboardAvoidingView
-      style={{ flex: 1 }}
-      behavior={Platform.OS === "ios" ? "padding" : "height"}
-    >
-      <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-        <ScrollView contentContainerStyle={{ flexGrow: 1 }}
-          keyboardShouldPersistTaps="handled">
-          <SafeAreaView style={stylesGlobal.mainContainer}>
-            <View style={stylesGlobal.pageTitleContainer}>
-              <TouchableOpacity style={stylesGlobal.buttonVoltar}
-                onPress={() => router.back()}>
-                <Feather name='arrow-left' size={15} />
-                <Text>Voltar</Text>
-              </TouchableOpacity>
-              <View>
-                <Text style={stylesGlobal.pageTitle}>Historico de coletas</Text>
-                <Text style={stylesGlobal.subtitleText}>Visualize sessões anteriores</Text>
-              </View>
-            </View>
-            <TouchableOpacity style={stylesGlobal.card}
-              onPress={() => router.push('/collections/collectionDetails')}>
-              <View style={stylesCollections.containerNamecard}>
-                <Text style={stylesCollections.nameCard}>Joãozinho gameplays</Text>
-                <Feather name='arrow-right' size={20}></Feather>
-              </View>
-              <View style={stylesCollections.containerDateTime}>
-                <View style={stylesCollections.containerTextDateTime}>
-                  <Ionicons name='calendar-clear-outline' size={14}></Ionicons>
-                  <Text>19/08/2025</Text>
-                </View>
-                <View style={stylesCollections.containerTextDateTime}>
-                  <Ionicons name='stopwatch-outline' size={14}></Ionicons>
-                  <Text>01:00</Text>
-                </View>
-              </View>
-              <View style={stylesCollections.containerCardsRelatorio}>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioRegistros]}>
-                  <Text>50</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Registros</Text>
-                </View>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioTempo]}>
-                  <Text>50s</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Segundos</Text>
-                </View>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioExemplo]}>
-                  <Text>50</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Pulsos</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={stylesGlobal.card}>
-              <View style={stylesCollections.containerNamecard}>
-                <Text style={stylesCollections.nameCard}>Joãozinho gameplays</Text>
-                <Feather name='arrow-right' size={20}></Feather>
-              </View>
-              <View style={stylesCollections.containerDateTime}>
-                <View style={stylesCollections.containerTextDateTime}>
-                  <Ionicons name='calendar-clear-outline' size={14}></Ionicons>
-                  <Text>19/08/2025</Text>
-                </View>
-                <View style={stylesCollections.containerTextDateTime}>
-                  <Ionicons name='stopwatch-outline' size={14}></Ionicons>
-                  <Text>01:00</Text>
-                </View>
-              </View>
-              <View style={stylesCollections.containerCardsRelatorio}>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioRegistros]}>
-                  <Text>50</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Registros</Text>
-                </View>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioTempo]}>
-                  <Text>50s</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Segundos</Text>
-                </View>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioExemplo]}>
-                  <Text>50</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Pulsos</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-            <TouchableOpacity style={stylesGlobal.card}>
-              <View style={stylesCollections.containerNamecard}>
-                <Text style={stylesCollections.nameCard}>Joãozinho gameplays</Text>
-                <Feather name='arrow-right' size={20}></Feather>
-              </View>
-              <View style={stylesCollections.containerDateTime}>
-                <View style={stylesCollections.containerTextDateTime}>
-                  <Ionicons name='calendar-clear-outline' size={14}></Ionicons>
-                  <Text>19/08/2025</Text>
-                </View>
-                <View style={stylesCollections.containerTextDateTime}>
-                  <Ionicons name='stopwatch-outline' size={14}></Ionicons>
-                  <Text>01:00</Text>
-                </View>
-              </View>
-              <View style={stylesCollections.containerCardsRelatorio}>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioRegistros]}>
-                  <Text>50</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Registros</Text>
-                </View>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioTempo]}>
-                  <Text>50s</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Segundos</Text>
-                </View>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioExemplo]}>
-                  <Text>50</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Pulsos</Text>
-                </View>
-              </View>
-            </TouchableOpacity>
-          </SafeAreaView>
-        </ScrollView>
-      </TouchableWithoutFeedback>
-    </KeyboardAvoidingView>
+    <SafeAreaView style={stylesGlobal.mainContainer}>
+      <View style={stylesGlobal.pageTitleContainer}>
+        <View>
+          <Text style={stylesGlobal.pageTitle}>Historico de coletas</Text>
+          <Text style={stylesGlobal.subtitleText}>Visualize sessões anteriores</Text>
+        </View>
+      </View>
+      <FlatList
+        contentContainerStyle={{ padding: 5 }}
+        data={listColetas}
+        renderItem={({ item }) => criarCardColeta(item)}
+        keyExtractor={(item, index) => index.toString()}
+        showsVerticalScrollIndicator={false}
+        ItemSeparatorComponent={() => <View style={{ height: 10 }}></View>}
+      ></FlatList>
+      <ModalDelete
+        visible={modalDeleteColetaVisible}
+        setVisible={setModalDeleteColetaVisible}
+        handleDelete={async () => await handleDeleteColeta(coletaToDeleteId)} />
+    </SafeAreaView>
   );
 }
 
@@ -150,7 +119,7 @@ const stylesCollections = StyleSheet.create({
   },
   cardRelatorio: {
     borderRadius: 5,
-    width: '30%',
+    width: '48%',
     paddingVertical: 5,
     justifyContent: 'center',
     alignItems: 'center'

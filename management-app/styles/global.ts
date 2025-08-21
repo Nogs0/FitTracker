@@ -74,27 +74,14 @@ export default StyleSheet.create({
         borderRadius: 5,
         elevation: 4
     },
+    buttonDisabled: {
+        opacity: 0.7
+    },
     pageTitleContainer: {
         flexDirection: 'row',
         justifyContent: 'flex-start',
         alignItems: 'center',
         gap: 15,
         marginBottom: 10
-    },
-    buttonStartCollection: {
-        backgroundColor: 'rgba(52,184,55,1)'
-    },
-    pickerStyle: {
-        width: '100%'
-    },
-    buttonVoltar: {
-        flexDirection: 'row',
-        backgroundColor: 'white',
-        alignItems: 'center',
-        width: 'auto',
-        padding: 5,
-        borderRadius: 5,
-        justifyContent: 'space-around',
-        elevation: 5,
     }
 });

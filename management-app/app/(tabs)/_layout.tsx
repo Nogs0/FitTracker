@@ -1,14 +1,16 @@
 import { Tabs } from 'expo-router';
 import React, { useEffect } from 'react';
-import { Platform } from 'react-native';
+import { Platform, TouchableOpacity } from 'react-native';
 import { Fontisto } from '@expo/vector-icons';
 import { HapticTab } from '@/components/HapticTab';
 import TabBarBackground from '@/components/ui/TabBarBackground';
 import { Colors } from '@/constants/Colors';
 import { useColorScheme } from '@/hooks/useColorScheme';
 import { initDB } from '../../data/database';
-
+import { useNavigationBlock } from '@/contexts/NavigationBlockContext';
+import stylesGlobal from '@/styles/global';
 export default function TabLayout() {
+  const { bloqueado } = useNavigationBlock();
   const colorScheme = useColorScheme();
   useEffect(() => {
     initDB();
@@ -19,7 +21,6 @@ export default function TabLayout() {
       screenOptions={{
         tabBarActiveTintColor: Colors[colorScheme ?? 'light'].tint,
         headerShown: false,
-        tabBarButton: HapticTab,
         tabBarBackground: TabBarBackground,
         tabBarStyle: Platform.select({
           ios: {
@@ -28,6 +29,9 @@ export default function TabLayout() {
           },
           default: {},
         }),
+        tabBarButton: (props) => (
+          <HapticTab {...props} disabled={bloqueado}></HapticTab>
+        ),
       }}>
       <Tabs.Screen
         name="settings"

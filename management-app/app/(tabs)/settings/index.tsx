@@ -1,10 +1,11 @@
+import Collapsible from 'react-native-collapsible';
 import { Feather } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
 import { Platform, StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import uuid from 'react-native-uuid';
-import stylesGlobal from '../../styles/global';
+import stylesGlobal from '../../../styles/global';
 import { useRouter } from 'expo-router';
 import { insertUsuario, getUsuarios, deleteUsuario, insertAtividade, getAtividades, deleteAtividade } from '../../../data/database';
+import ModalDelete from '@/components/ModalDelete';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -13,6 +14,34 @@ export default function SettingsScreen() {
     carregarUsuarios();
     carregarAtividades();
   }, [])
+
+  const [modalDeleteUsuarioVisible, setModalDeleteUsuarioVisible] = useState(false);
+  const [usuarioToDeleteId, setUsuarioToDeleteId] = useState<number>(0);
+  const handleDeleteUsuario = async (id: number) => {
+    setModalDeleteUsuarioVisible(false);
+    await deleteUsuario(id);
+    await carregarUsuarios();
+  };
+
+  const [modalDeleteAtividadeVisible, setModalDeleteAtividadeVisible] = useState(false);
+  const [atividadeToDeleteId, setAtividadeToDeleteId] = useState<number>(0);
+
+  const handleDeleteAtividade = async (id: number) => {
+    setModalDeleteAtividadeVisible(false);
+    await deleteAtividade(id);
+    await carregarAtividades();
+  };
+
+  const [collapsedUsuarios, setCollapsedUsuarios] = useState(true);
+  const [collapsedAtividades, setCollapsedAtividades] = useState(true);
+
+  const toggleExpandedUsuarios = () => {
+    setCollapsedUsuarios(!collapsedUsuarios);
+  };
+
+  const toggleExpandedAtividades = () => {
+    setCollapsedAtividades(!collapsedAtividades);
+  };
 
   const [idadeUsuario, setIdadeUsuario] = useState<string | undefined>();
   const [nomeUsuario, setNomeUsuario] = useState<string | undefined>();
@@ -40,16 +69,18 @@ export default function SettingsScreen() {
 
   // 🔹 Excluir usuário
   const excluirUsuario = async (id: number) => {
-    await deleteUsuario(id);
-    console.log('Excluído com sucesso!');
-    carregarUsuarios();
+    setUsuarioToDeleteId(id);
+    setModalDeleteUsuarioVisible(true);
   };
 
   // 🔹 Criar card do usuário
   const createCardUsuario = (item: any) => {
     return (
       <View key={item.id} style={stylesGlobal.cardList}>
-        <Text>{item.nome}, {item.idade} anos</Text>
+        <View style={{ width: '80%' }}>
+          <Text>{item.nome}</Text>
+          <Text>{item.idade} anos</Text>
+        </View>
         <TouchableOpacity onPress={() => excluirUsuario(item.id)} style={{ padding: 5 }}>
           <Feather name='trash' color='gray' size={20} />
         </TouchableOpacity>
@@ -75,16 +106,15 @@ export default function SettingsScreen() {
 
   // 🔹 Excluir atividade
   const excluirAtividade = async (id: number) => {
-    await deleteAtividade(id);
-    console.log('Excluído com sucesso!');
-    carregarAtividades();
+    setAtividadeToDeleteId(id);
+    setModalDeleteAtividadeVisible(true);
   };
 
 
   const createCardAtividade = (item: any) => {
     return (
       <View key={item.id} style={stylesGlobal.cardList}>
-        <Text>{item.nome}</Text>
+        <Text style={{ width: '80%' }}>{item.nome}</Text>
         <TouchableOpacity onPress={() => excluirAtividade(item.id)} style={{ padding: 5 }}>
           <Feather name='trash' color='gray' size={20}></Feather>
         </TouchableOpacity>
@@ -100,7 +130,7 @@ export default function SettingsScreen() {
       <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
         <ScrollView contentContainerStyle={{ flexGrow: 1 }}
           keyboardShouldPersistTaps="handled">
-          <SafeAreaView style={stylesGlobal.mainContainer}>
+          <SafeAreaView style={[stylesGlobal.mainContainer, {justifyContent: 'space-between'}]}>
             <View>
               <Text style={stylesGlobal.pageTitle}>Configurações da coleta</Text>
               <Text style={stylesGlobal.subtitleText}>Cadastre usuários e atividades físicas</Text>
@@ -127,16 +157,24 @@ export default function SettingsScreen() {
                     keyboardType='numeric' placeholder='Digite a idade do usuário' />
                 </View>
               </View>
-              <TouchableOpacity style={[stylesGlobal.button, stylesSettings.buttonAddUser]}
-                onPress={addUsuario}>
+              <TouchableOpacity style={[stylesGlobal.button, stylesSettings.buttonAddUser,
+              (!nomeUsuario || !idadeUsuario ? stylesGlobal.buttonDisabled : {})
+              ]}
+                onPress={addUsuario}
+                disabled={!nomeUsuario || !idadeUsuario}>
                 <Feather name='plus' size={25} color='white' />
                 <Text style={stylesGlobal.buttonLabel}>Adicionar usuário</Text>
               </TouchableOpacity>
               <View style={stylesGlobal.containerList}>
                 {listaDeUsuarios.length > 0 ?
-                  <Text style={stylesGlobal.labelList}>Usuários cadastrados ({listaDeUsuarios.length}):</Text>
+                  <TouchableOpacity style={stylesSettings.buttonCollapseList} onPress={toggleExpandedUsuarios}>
+                    <Text style={stylesGlobal.labelList}>Usuários cadastrados ({listaDeUsuarios.length})</Text>
+                    <Feather name={collapsedUsuarios ? 'chevron-down' : 'chevron-up'} color={'gray'} size={20}></Feather>
+                  </TouchableOpacity>
                   : <></>}
-                {listaDeUsuarios.map((user, i) => createCardUsuario(user))}
+                <Collapsible collapsed={collapsedUsuarios}>
+                  {listaDeUsuarios.map((user, i) => createCardUsuario(user))}
+                </Collapsible>
               </View>
             </View>
             <View style={stylesGlobal.card}>
@@ -154,28 +192,45 @@ export default function SettingsScreen() {
                     placeholder='Digite o nome da atividade' />
                 </View>
               </View>
-              <TouchableOpacity style={[stylesGlobal.button, stylesSettings.buttonAddActivity]}
-                onPress={addAtividade}>
+              <TouchableOpacity style={[stylesGlobal.button, stylesSettings.buttonAddActivity,
+              (!nomeAtividade ? stylesGlobal.buttonDisabled : {})
+              ]}
+                onPress={addAtividade}
+                disabled={!nomeAtividade}>
                 <Feather name='plus' size={25} color='white' />
                 <Text style={stylesGlobal.buttonLabel}>Adicionar atividade</Text>
               </TouchableOpacity>
               <View style={stylesGlobal.containerList}>
                 {listaDeAtividades.length > 0 ?
-                  <Text style={stylesGlobal.labelList}>Atividades cadastradas ({listaDeAtividades.length}):</Text>
+                  <TouchableOpacity style={stylesSettings.buttonCollapseList} onPress={toggleExpandedAtividades}>
+                    <Text style={stylesGlobal.labelList}>Atividades cadastradas ({listaDeAtividades.length})</Text>
+                    <Feather name={collapsedAtividades ? 'chevron-down' : 'chevron-up'} color={'gray'} size={20}></Feather>
+                  </TouchableOpacity>
                   : <></>}
-                {listaDeAtividades.map((atividade, i) => createCardAtividade(atividade))}
+                <Collapsible collapsed={collapsedAtividades}>
+                  {listaDeAtividades.map((atividade, i) => createCardAtividade(atividade))}
+                </Collapsible>
               </View>
             </View>
             <TouchableOpacity
-              style={listaDeAtividades.length === 0 || listaDeUsuarios.length === 0 ? stylesSettings.buttonStartDataCollectionDisabled : stylesSettings.buttonStartDataCollection}
+              style={[stylesSettings.buttonStartDataCollection,
+              (listaDeAtividades.length === 0 || listaDeUsuarios.length === 0 ? stylesGlobal.buttonDisabled : {})]}
               disabled={listaDeAtividades.length === 0 || listaDeUsuarios.length === 0}
-              onPress={() => router.push('/settings/collectionData')}>
-              <Text style={[stylesGlobal.buttonLabel, stylesSettings.buttonLabelStartDataCollection]}>Iniciar coleta de dados</Text>
+              onPress={() => router.push('/settings/startCollection')}>
+              <Text style={[stylesGlobal.buttonLabel, stylesSettings.buttonLabelStartDataCollection,]}>Iniciar coleta de dados</Text>
               <Feather name='arrow-right' size={30} color='white' />
             </TouchableOpacity>
           </SafeAreaView>
         </ScrollView>
       </TouchableWithoutFeedback>
+      <ModalDelete
+        visible={modalDeleteUsuarioVisible}
+        setVisible={setModalDeleteUsuarioVisible}
+        handleDelete={async () => await handleDeleteUsuario(usuarioToDeleteId)} />
+      <ModalDelete
+        visible={modalDeleteAtividadeVisible}
+        setVisible={setModalDeleteAtividadeVisible}
+        handleDelete={async() => await handleDeleteAtividade(atividadeToDeleteId)} />
     </KeyboardAvoidingView>
   );
 }
@@ -208,5 +263,10 @@ const stylesSettings = StyleSheet.create({
     justifyContent: 'space-evenly',
     borderRadius: 5,
     backgroundColor: 'rgba(82,166,172,1)'
+  },
+  buttonCollapseList: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center'
   }
 });
