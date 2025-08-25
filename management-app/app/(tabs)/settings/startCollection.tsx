@@ -1,13 +1,14 @@
 import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet } from "react-native";
 import stylesGlobal from '@/styles/global';
 import { Feather, FontAwesome } from "@expo/vector-icons";
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useState } from "react";
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { finalizarColeta, getAtividades, getUsuarios, insertColeta } from "@/data/database";
 import { useNavigationBlock } from '@/contexts/NavigationBlockContext';
 
 export default function StartCollectionScreen() {
+
     const router = useRouter();
     const { setBloqueado } = useNavigationBlock();
 

@@ -23,8 +23,7 @@ export default function Index() {
     return () => {
       stopLogging()
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  });
 
   const startLogging = async () => {
     RNFS.writeFile(fileUri, 'timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n', 'utf8')
