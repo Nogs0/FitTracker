@@ -1,10 +1,13 @@
-import { SafeAreaView, StyleSheet, View, Text, Button } from 'react-native';
-import { Feather, FontAwesome, MaterialIcons } from '@expo/vector-icons';
+import { SafeAreaView, StyleSheet, View, Text } from 'react-native';
+import { Feather, FontAwesome } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { Accelerometer, Barometer, Magnetometer, Gyroscope } from "expo-sensors";
 import RNFS from 'react-native-fs';
+import BluetoothServerService from '@/services/BluetoothServerService';
 
 export default function Index() {
+  const [messages, setMessages] = useState<string[]>([]);
+  const [connected, setConnected] = useState(false);
 
   const fileUri = RNFS.DownloadDirectoryPath + "/sensores.csv";
   const subscriptionRefs = useRef<any[]>([]);
@@ -20,8 +23,18 @@ export default function Index() {
   const contadorDeRegistros = useRef<number>(0);
 
   useEffect(() => {
+    BluetoothServerService.startServer(
+      (device) => {
+        setConnected(true);
+        console.log("Conectado com:", device.name);
+      },
+      (msg) => {
+        setMessages((prev) => [...prev, msg]);
+      });
+
     return () => {
-      stopLogging()
+      BluetoothServerService.stopServer();
+      stopLogging();
     };
   });
 
@@ -111,17 +124,6 @@ export default function Index() {
           <Text style={styles.titleText}>Informações dos sensores utilizados</Text>
         </View>
         <View style={styles.cardBody}>
-          <View style={styles.containerInformacoesSensores}>
-            <Text style={styles.labelInformacoesSensores}>Sensores Ativos:</Text>
-            <Text style={styles.textInformacoesSensores}>• Acelerômetro</Text>
-            <Text style={styles.textInformacoesSensores}>• Giroscópio</Text>
-            <Text style={styles.textInformacoesSensores}>• Magnetômetro</Text>
-            <Text style={styles.textInformacoesSensores}>• Barômetro</Text>
-          </View>
-          <View style={styles.containerInformacoesSensores}>
-            <Text style={styles.labelInformacoesSensores}>Frequência de coleta:</Text>
-            <Text style={styles.textInformacoesSensores}>60hz</Text>
-          </View>
         </View>
       </View>
       <View style={[styles.card, { justifyContent: 'center', flex: 0.1 }]}>
@@ -133,25 +135,12 @@ export default function Index() {
       <View style={styles.card}>
         <View style={styles.titleContainer}>
           <Feather name='file' size={25} color={'rgb(255, 150, 51)'} />
-          <View style={{flexDirection: 'row', justifyContent: 'space-between', flex: 1}}>
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', flex: 1 }}>
             <Text style={styles.titleText}>Informações da coleta</Text>
             <Feather name='share' size={25} color={'rgb(255, 150, 51)'} />
           </View>
         </View>
         <View>
-          <View style={styles.containerInformacoesSensores}>
-            <Text style={styles.labelInformacoesSensores}>Usuário:</Text>
-            <Text style={styles.textInformacoesSensores}>João Guilherme Nogueira</Text>
-            <Text style={styles.textInformacoesSensores}>21 anos</Text>
-          </View>
-          <View style={styles.containerInformacoesSensores}>
-            <Text style={styles.labelInformacoesSensores}>Registros coletados:</Text>
-            <Text style={styles.textInformacoesSensores}>1200</Text>
-          </View>
-          <View style={styles.containerInformacoesSensores}>
-            <Text style={styles.labelInformacoesSensores}>Tempo de coleta:</Text>
-            <Text style={styles.textInformacoesSensores}>10s</Text>
-          </View>
         </View>
       </View>
     </SafeAreaView>

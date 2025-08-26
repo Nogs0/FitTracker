@@ -47,6 +47,12 @@ export default function TabLayout() {
           tabBarIcon: ({ color }) => <Fontisto name='heartbeat' color={color} size={20} />,
         }}
       />
+      <Tabs.Screen
+        name="index"
+        options={{
+          href: null,
+        }}
+      />
     </Tabs>
   );
 }

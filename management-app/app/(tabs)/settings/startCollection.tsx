@@ -1,16 +1,44 @@
-import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, FlatList, Button } from "react-native";
 import stylesGlobal from '@/styles/global';
 import { Feather, FontAwesome } from "@expo/vector-icons";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect, useRouter } from 'expo-router';
 import { finalizarColeta, getAtividades, getUsuarios, insertColeta } from "@/data/database";
 import { useNavigationBlock } from '@/contexts/NavigationBlockContext';
+import BluetoothClientService from "@/services/BluetoothClientService";
 
 export default function StartCollectionScreen() {
 
     const router = useRouter();
     const { setBloqueado } = useNavigationBlock();
+
+    const [devices, setDevices] = useState<any[]>([]);
+    const [connected, setConnected] = useState(false);
+    const [messages, setMessages] = useState<string[]>([]);
+
+    useEffect(() => {
+        const loadDevices = async () => {
+            const bonded = await BluetoothClientService.getBondedDevices();
+            setDevices(bonded);
+        };
+        loadDevices();
+
+        return () => {
+            BluetoothClientService.disconnect();
+        };
+    }, []);
+
+    const connect = async (device: any) => {
+        await BluetoothClientService.connectToDevice(device.address, (msg) => {
+            setMessages((prev) => [...prev, msg]);
+        });
+        setConnected(true);
+    };
+
+    const sendTest = () => {
+        BluetoothClientService.sendMessage("Olá do cliente!");
+    };
 
     useFocusEffect(
         useCallback(() => {

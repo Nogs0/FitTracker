@@ -1,10 +1,10 @@
 import Collapsible from 'react-native-collapsible';
 import { Feather } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { Platform, StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
-import stylesGlobal from '../../../styles/global';
+import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import stylesGlobal from '@/styles/global';
 import { useRouter } from 'expo-router';
-import { insertUsuario, getUsuarios, deleteUsuario, insertAtividade, getAtividades, deleteAtividade } from '../../../data/database';
+import { insertUsuario, getUsuarios, deleteUsuario, insertAtividade, getAtividades, deleteAtividade } from '@/data/database';
 import ModalDelete from '@/components/ModalDelete';
 
 export default function SettingsScreen() {
