@@ -1,15 +1,20 @@
-import { SafeAreaView, StyleSheet, View, Text } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import { useEffect, useRef, useState } from 'react';
 import { Accelerometer, Barometer, Magnetometer, Gyroscope } from "expo-sensors";
 import RNFS from 'react-native-fs';
 import BluetoothServerService from '@/services/BluetoothServerService';
+import * as Sharing from 'expo-sharing';
+import { jsiConfigureProps } from 'react-native-reanimated/lib/typescript/core';
 
 export default function Index() {
   const [messages, setMessages] = useState<string[]>([]);
   const [connected, setConnected] = useState(false);
+  const [coletaIniciada, setColetaIniciada] = useState(false);
+  const [coletaFinalizada, setColetaFinalizada] = useState(false);
 
-  const fileUri = RNFS.DownloadDirectoryPath + "/sensores.csv";
+  const fileUri = RNFS.DownloadDirectoryPath + "/relatoriosSensores/";
+  const [fileName, setFileName] = useState("teste.csv");
   const subscriptionRefs = useRef<any[]>([]);
   const buffer = useRef<any[]>([]);
   const intervalRef = useRef<number>(0);
@@ -22,32 +27,54 @@ export default function Index() {
 
   const contadorDeRegistros = useRef<number>(0);
 
+  const stringCanBeConvertedToJSON = (msg: string) => {
+    try {
+      JSON.parse(msg);
+      return true;
+    }
+    catch {
+      return false;
+    }
+  }
   useEffect(() => {
     BluetoothServerService.startServer(
       (device) => {
         setConnected(true);
+        setCorStatusColeta("blue")
+        setTextoColeta("Conectado");
         console.log("Conectado com:", device.name);
       },
       (msg) => {
         setMessages((prev) => [...prev, msg]);
+        console.log(msg)
+        if (stringCanBeConvertedToJSON(msg)) {
+          let convertedJSON = JSON.parse(msg);
+          setFileName(convertedJSON.fileName);
+          if (convertedJSON.iniciarColeta)
+            startLogging(convertedJSON);
+          if (convertedJSON.pararColeta)
+            stopLogging();
+        }
       });
 
     return () => {
-      BluetoothServerService.stopServer();
-      stopLogging();
+      // BluetoothServerService.stopServer();
+      // stopLogging();
     };
   });
 
-  const startLogging = async () => {
-    RNFS.writeFile(fileUri, 'timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n', 'utf8')
+  const startLogging = async (dadosDaColeta: any) => {
+    setColetaIniciada(true);
+
+    RNFS.writeFile(fileUri + fileName, 'timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n', 'utf8')
       .then(() => console.log('Arquivo CSV criado'))
       .catch(err => console.log('Erro ao criar CSV:', err));
 
     // Taxa de 10 Hz (100ms)
-    Accelerometer.setUpdateInterval(100);
-    Gyroscope.setUpdateInterval(100);
-    Magnetometer.setUpdateInterval(100);
-    Barometer.setUpdateInterval(100);
+    Accelerometer.setUpdateInterval(dadosDaColeta.frequencia);
+    Gyroscope.setUpdateInterval(dadosDaColeta.frequencia);
+    Magnetometer.setUpdateInterval(dadosDaColeta.frequencia);
+    Barometer.setUpdateInterval(dadosDaColeta.frequencia);
 
     // Criar listeners
     subscriptionRefs.current = [
@@ -82,13 +109,13 @@ export default function Index() {
       if (buffer.current.length >= 100) {
         const dataToWrite = buffer.current.join('');
         buffer.current = [];
-        RNFS.appendFile(fileUri, dataToWrite, 'utf8')
+        RNFS.appendFile(fileUri + fileName, dataToWrite, 'utf8')
           .catch(err => console.log('Erro ao escrever CSV:', err));
       }
     }, 100);
 
-    setCorStatusColeta('green');
-    setTextoColeta('EM ANDAMENTO');
+    setCorStatusColeta('orange');
+    setTextoColeta('Em Andamento');
   };
 
   const stopLogging = () => {
@@ -98,33 +125,43 @@ export default function Index() {
     if (buffer.current.length > 0) {
       const dataToWrite = buffer.current.join('');
       buffer.current = [];
-      RNFS.appendFile(fileUri, dataToWrite, 'utf8').catch(err => console.log('Erro ao finalizar CSV:', err));
+      RNFS.appendFile(fileUri + fileName, dataToWrite, 'utf8').catch(err => console.log('Erro ao finalizar CSV:', err));
+    }
+    setCorStatusColeta('green');
+    setTextoColeta('Finalizado');
+  };
+
+  const compartilharColeta = async () => {
+    const isSharingAvailable = await Sharing.isAvailableAsync();
+    if (!isSharingAvailable) {
+      Alert.alert('Erro', 'O compartilhamento não está disponível neste dispositivo.');
+      return;
     }
 
-    setCorStatusColeta('gray');
-    setTextoColeta('AGUARDANDO');
-  };
+    try {
+      await Sharing.shareAsync("file://" + fileUri, {
+        mimeType: 'text/csv',
+        dialogTitle: 'Compartilhar a coleta',
+      });
+    } catch (error) {
+      console.error('Erro ao compartilhar o arquivo:', error);
+      Alert.alert('Erro', 'Não foi possível compartilhar suas coleções.');
+    }
+  }
 
-  const checkFiles = async () => {
-    const files = await RNFS.readDir(RNFS.DocumentDirectoryPath);
-  };
+  const excluirColeta = async () => {
+    if (await RNFS.exists(fileUri + fileName)) {
+      await RNFS.unlink(fileUri + fileName)
+    }
+  }
 
   const [corStatusColeta, setCorStatusColeta] = useState<string>('gray');
-  const [textoColeta, setTextoColeta] = useState<string>('AGUARDANDO');
+  const [textoColeta, setTextoColeta] = useState<string>('Aguardando Conexão');
 
   return (
     <SafeAreaView style={styles.mainContainer}>
       <View style={styles.pageTitleContainer}>
         <Text style={styles.pageTitle}>Coletor de Dados</Text>
-        <Text style={styles.subtitleText}>Aguardando conexão</Text>
-      </View>
-      <View style={styles.card}>
-        <View style={styles.titleContainer}>
-          <Feather name='cpu' size={25} color={'rgb(78, 136, 237)'} />
-          <Text style={styles.titleText}>Informações dos sensores utilizados</Text>
-        </View>
-        <View style={styles.cardBody}>
-        </View>
       </View>
       <View style={[styles.card, { justifyContent: 'center', flex: 0.1 }]}>
         <View style={styles.statusColetaContainer}>
@@ -132,18 +169,42 @@ export default function Index() {
           <Text style={styles.titleColetaText}>{textoColeta}</Text>
         </View>
       </View>
-      <View style={styles.card}>
-        <View style={styles.titleContainer}>
-          <Feather name='file' size={25} color={'rgb(255, 150, 51)'} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', flex: 1 }}>
-            <Text style={styles.titleText}>Informações da coleta</Text>
-            <Feather name='share' size={25} color={'rgb(255, 150, 51)'} />
+      {coletaIniciada ?
+        <View style={styles.card}>
+          <View style={styles.titleContainer}>
+            <Feather name='cpu' size={25} color={'rgb(78, 136, 237)'} />
+            <Text style={styles.titleText}>Informações dos sensores utilizados</Text>
+          </View>
+          <View style={styles.cardBody}>
           </View>
         </View>
-        <View>
+        : <></>}
+      {coletaFinalizada ?
+        <View style={styles.card}>
+          <View style={styles.titleContainer}>
+            <Feather name='file' size={25} color={'rgb(255, 150, 51)'} />
+            <View style={{ flexDirection: 'row', justifyContent: 'space-between', flex: 1 }}>
+              <Text style={styles.titleText}>Informações da coleta</Text>
+            </View>
+          </View>
+          <View>
+            <View style={styles.card}>
+              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                <Text>{fileName}</Text>
+                <View style={{ flexDirection: 'row', gap: 10 }}>
+                  <TouchableOpacity onPress={excluirColeta}>
+                    <Feather name='trash' size={20}></Feather>
+                  </TouchableOpacity>
+                  <TouchableOpacity onPress={compartilharColeta}>
+                    <Feather name='share' size={20}></Feather>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </View>
+          </View>
         </View>
-      </View>
-    </SafeAreaView>
+        : <></>}
+    </SafeAreaView >
   );
 }
 

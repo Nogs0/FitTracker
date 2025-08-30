@@ -1,4 +1,4 @@
-import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, FlatList, Button } from "react-native";
+import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, FlatList, Button, Alert } from "react-native";
 import stylesGlobal from '@/styles/global';
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
@@ -7,33 +7,42 @@ import { useFocusEffect, useRouter } from 'expo-router';
 import { finalizarColeta, getAtividades, getUsuarios, insertColeta } from "@/data/database";
 import { useNavigationBlock } from '@/contexts/NavigationBlockContext';
 import BluetoothClientService from "@/services/BluetoothClientService";
+import ModalSelectDeviceBluetooh from "@/components/ModalSelectDeviceBluetooh";
 
 export default function StartCollectionScreen() {
 
     const router = useRouter();
     const { setBloqueado } = useNavigationBlock();
 
-    const [devices, setDevices] = useState<any[]>([]);
+    const [modalBluetoohVisible, setModalBluetoothVisible] = useState(true);
+    const [bluetoothDevices, setBluetoothDevices] = useState<any[]>([]);
     const [connected, setConnected] = useState(false);
     const [messages, setMessages] = useState<string[]>([]);
 
     useEffect(() => {
         const loadDevices = async () => {
             const bonded = await BluetoothClientService.getBondedDevices();
-            setDevices(bonded);
+            setBluetoothDevices(bonded);
         };
         loadDevices();
 
-        return () => {
-            BluetoothClientService.disconnect();
-        };
+        // return () => {
+        //     BluetoothClientService.disconnect();
+        // };
     }, []);
 
     const connect = async (device: any) => {
-        await BluetoothClientService.connectToDevice(device.address, (msg) => {
-            setMessages((prev) => [...prev, msg]);
-        });
-        setConnected(true);
+        try {
+
+            await BluetoothClientService.connectToDevice(device.address, (msg) => {
+                setMessages((prev) => [...prev, msg]);
+            });
+            setConnected(true);
+            setModalBluetoothVisible(false);
+        }
+        catch {
+            Alert.alert(`Conexão falhou`, `Erro desconhecido ao tentar se conectar com o dispositivo: \n${device.name}`)
+        }
     };
 
     const sendTest = () => {
@@ -51,7 +60,26 @@ export default function StartCollectionScreen() {
 
     const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
     const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
+    const listaDeFrequencias = [
+        { 
+            hertz: 10, 
+            milissegundos: 100
+        },
+        { 
+            hertz: 15, 
+            milissegundos: 66
+        },
+        { 
+            hertz: 30, 
+            milissegundos: 33
+        },
+        { 
+            hertz: 60, 
+            milissegundos: 16
+        },
+    ];
 
+    const [frequencia, setFrequencia] = useState<any>();
     const [usuario, setUsuario] = useState<any>();
     const [atividade, setAtividade] = useState<any>();
     const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
@@ -79,6 +107,14 @@ export default function StartCollectionScreen() {
         setCorIconeCardColeta('rgb(78, 136, 237)');
         setTitleCardColeta('Estabelecendo conexão');
         setIdColeta(await insertColeta(usuario?.nome, usuario?.idade, atividade.nome, Date.now().toString()));
+        BluetoothClientService.sendMessage(
+            `{
+                "iniciarColeta": true,
+                "pararColeta": false,
+                "fileName": "${usuario.nome}_${Date.now}.csv",
+                "frequencia": ${frequencia} 
+            }`
+        )
     }
 
     const pararColeta = async () => {
@@ -90,17 +126,27 @@ export default function StartCollectionScreen() {
         setCorIconeCardColeta('gray');
         setTitleCardColeta('Aguardando informações');
         await finalizarColeta(idColeta, Date.now().toString(), false, 0);
+        BluetoothClientService.sendMessage(
+            `{
+                "pararColeta": true,
+            }`
+        )
     }
 
     return (
         <KeyboardAvoidingView
             style={{ flex: 1 }}
-            behavior={Platform.OS === "ios" ? "padding" : "height"}
+            behavior={"height"}
         >
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <ScrollView contentContainerStyle={{ flexGrow: 1 }}
                     keyboardShouldPersistTaps="handled">
                     <SafeAreaView style={stylesGlobal.mainContainer}>
+                        <ModalSelectDeviceBluetooh
+                            handleConnect={connect}
+                            devices={bluetoothDevices}
+                            visible={modalBluetoohVisible}
+                            setVisible={setModalBluetoothVisible} />
                         <View style={stylesGlobal.pageTitleContainer}>
                             <TouchableOpacity style={[stylesStartCollection.buttonVoltar, (coletaEmAndamento ? stylesGlobal.buttonDisabled : {})]}
                                 onPress={() => router.back()}
@@ -151,6 +197,24 @@ export default function StartCollectionScreen() {
                                             listaDeAtividades.map((item, i) => {
                                                 return (
                                                     <Picker.Item key={i} label={item.nome} value={item} />
+                                                )
+                                            })
+                                        }
+                                    </Picker>
+                                </View>
+                                <View style={stylesGlobal.inputContainer}>
+                                    <Text style={stylesGlobal.labelInput}>Frequência</Text>
+                                    <Picker
+                                        selectedValue={frequencia}
+                                        onValueChange={(itemValue) => setFrequencia(itemValue)}
+                                        style={stylesStartCollection.pickerStyle}
+                                        enabled={!coletaEmAndamento}
+                                    >
+                                        <Picker.Item label="Selecione a frequência" />
+                                        {
+                                            listaDeFrequencias.map((item, i) => {
+                                                return (
+                                                    <Picker.Item key={i} label={`${item.hertz}Hz`} value={item.milissegundos} />
                                                 )
                                             })
                                         }

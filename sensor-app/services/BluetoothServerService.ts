@@ -9,6 +9,9 @@ class BluetoothServerService {
   private connectedDevice: BluetoothDevice | null = null;
   private dataListener: BluetoothEventSubscription | null = null;
 
+  public async getStatusServer() {
+    return await RNBluetoothClassic.isBluetoothEnabled();
+  } 
   /**
    * Inicia o servidor e aguarda conexões
    */
@@ -17,6 +20,9 @@ class BluetoothServerService {
     onMessage?: ListenerCallback
   ): Promise<void> {
     try {
+      if (await this.getStatusServer()){
+        return;
+      }
       const device = await RNBluetoothClassic.accept({ delimiter: "\n" });
       this.connectedDevice = device;
 
