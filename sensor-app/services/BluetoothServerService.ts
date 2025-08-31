@@ -1,3 +1,4 @@
+import { PermissionsAndroid, Platform } from "react-native";
 import RNBluetoothClassic, {
   BluetoothDevice,
   BluetoothEventSubscription,
@@ -9,9 +10,66 @@ class BluetoothServerService {
   private connectedDevice: BluetoothDevice | null = null;
   private dataListener: BluetoothEventSubscription | null = null;
 
+  public async requestBluetoothPermission() {
+    if (Platform.OS !== 'android') {
+      return true; // Se não for Android, não faz nada
+    }
+
+    // Para Android 12 (API 31) ou superior
+    if (Platform.Version >= 31) {
+      try {
+        const permissions = await PermissionsAndroid.requestMultiple([
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_SCAN,
+          PermissionsAndroid.PERMISSIONS.BLUETOOTH_CONNECT,
+        ]);
+
+        const isScanGranted = permissions['android.permission.BLUETOOTH_SCAN'] === PermissionsAndroid.RESULTS.GRANTED;
+        const isConnectGranted = permissions['android.permission.BLUETOOTH_CONNECT'] === PermissionsAndroid.RESULTS.GRANTED;
+
+        if (isScanGranted && isConnectGranted) {
+          console.log('Permissões de Bluetooth para Android 12+ concedidas.');
+          return true;
+        } else {
+          console.log('Uma ou mais permissões de Bluetooth para Android 12+ foram negadas.');
+          return false;
+        }
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+
+    // Para Android 11 (API 30) ou inferior
+    // A permissão de localização é suficiente
+    else {
+      try {
+        const granted = await PermissionsAndroid.request(
+          PermissionsAndroid.PERMISSIONS.ACCESS_FINE_LOCATION,
+          {
+            title: 'Permissão de Localização',
+            message: 'Este aplicativo precisa de acesso à sua localização para encontrar dispositivos Bluetooth próximos.',
+            buttonNegative: 'Cancelar',
+            buttonPositive: 'OK',
+          }
+        );
+
+        if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          console.log('Permissão de Localização (para Bluetooth) concedida.');
+          return true;
+        } else {
+          console.log('Permissão de Localização (para Bluetooth) negada.');
+          return false;
+        }
+      } catch (err) {
+        console.warn(err);
+        return false;
+      }
+    }
+  }
+
   public async getStatusServer() {
     return await RNBluetoothClassic.isBluetoothEnabled();
-  } 
+  }
   /**
    * Inicia o servidor e aguarda conexões
    */
@@ -20,9 +78,12 @@ class BluetoothServerService {
     onMessage?: ListenerCallback
   ): Promise<void> {
     try {
-      if (await this.getStatusServer()){
-        return;
-      }
+
+      await this.requestBluetoothPermission();
+      // if (await RNBluetoothClassic.isBluetoothEnabled()) {
+      //   console.log('já ativo')
+      //   return;
+      // }
       const device = await RNBluetoothClassic.accept({ delimiter: "\n" });
       this.connectedDevice = device;
 
@@ -32,7 +93,6 @@ class BluetoothServerService {
 
       // Ouvindo mensagens recebidas
       this.dataListener = device.onDataReceived((event) => {
-        console.log("Mensagem recebida:", event.data);
         if (onMessage) onMessage(event.data);
       });
     } catch (err) {

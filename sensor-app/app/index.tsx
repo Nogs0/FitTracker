@@ -37,31 +37,30 @@ export default function Index() {
     }
   }
   useEffect(() => {
+  });
+
+  const aceitarConexoes = async () => {
+    setTextoColeta("Disponível");
     BluetoothServerService.startServer(
       (device) => {
+        console.log("Conectado com:", device.name);
         setConnected(true);
         setCorStatusColeta("blue")
         setTextoColeta("Conectado");
-        console.log("Conectado com:", device.name);
       },
       (msg) => {
         setMessages((prev) => [...prev, msg]);
-        console.log(msg)
         if (stringCanBeConvertedToJSON(msg)) {
           let convertedJSON = JSON.parse(msg);
-          setFileName(convertedJSON.fileName);
-          if (convertedJSON.iniciarColeta)
+          if (convertedJSON.iniciarColeta) {
             startLogging(convertedJSON);
+            setFileName(convertedJSON.fileName);
+          }
           if (convertedJSON.pararColeta)
             stopLogging();
         }
       });
-
-    return () => {
-      // BluetoothServerService.stopServer();
-      // stopLogging();
-    };
-  });
+  }
 
   const startLogging = async (dadosDaColeta: any) => {
     setColetaIniciada(true);
@@ -169,6 +168,17 @@ export default function Index() {
           <Text style={styles.titleColetaText}>{textoColeta}</Text>
         </View>
       </View>
+      <TouchableOpacity style={
+        {
+          width: '100%',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: '#4182ff',
+          padding: 10,
+        }}
+        onPress={aceitarConexoes}>
+        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>Aceitar conexões</Text>
+      </TouchableOpacity>
       {coletaIniciada ?
         <View style={styles.card}>
           <View style={styles.titleContainer}>

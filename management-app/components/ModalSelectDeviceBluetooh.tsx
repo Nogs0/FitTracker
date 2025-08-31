@@ -48,7 +48,7 @@ export default function ModalSelectDeviceBluetooh(props: ModalSelectDeviceBlueto
                     />
 
                     <View style={styles.actions}>
-                        <TouchableOpacity onPress={() => router.back()} style={styles.cancelButton}>
+                        <TouchableOpacity onPress={() => router.back()  } style={styles.cancelButton}>
                             <Text style={styles.cancelText}>Cancelar</Text>
                         </TouchableOpacity>
                     </View>

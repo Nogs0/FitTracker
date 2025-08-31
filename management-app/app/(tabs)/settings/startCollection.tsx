@@ -1,4 +1,4 @@
-import { Keyboard, KeyboardAvoidingView, Platform, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, FlatList, Button, Alert } from "react-native";
+import { Keyboard, KeyboardAvoidingView, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, PermissionsAndroid, Alert, Platform } from "react-native";
 import stylesGlobal from '@/styles/global';
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
@@ -20,11 +20,14 @@ export default function StartCollectionScreen() {
     const [messages, setMessages] = useState<string[]>([]);
 
     useEffect(() => {
-        const loadDevices = async () => {
-            const bonded = await BluetoothClientService.getBondedDevices();
-            setBluetoothDevices(bonded);
-        };
-        loadDevices();
+        BluetoothClientService.requestBluetoothPermission()
+            .then(() => {
+                const loadDevices = async () => {
+                    const bonded = await BluetoothClientService.getBondedDevices();
+                    setBluetoothDevices(bonded);
+                };
+                loadDevices();
+            })
 
         // return () => {
         //     BluetoothClientService.disconnect();
@@ -61,20 +64,20 @@ export default function StartCollectionScreen() {
     const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
     const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
     const listaDeFrequencias = [
-        { 
-            hertz: 10, 
+        {
+            hertz: 10,
             milissegundos: 100
         },
-        { 
-            hertz: 15, 
+        {
+            hertz: 15,
             milissegundos: 66
         },
-        { 
-            hertz: 30, 
+        {
+            hertz: 30,
             milissegundos: 33
         },
-        { 
-            hertz: 60, 
+        {
+            hertz: 60,
             milissegundos: 16
         },
     ];
@@ -107,14 +110,14 @@ export default function StartCollectionScreen() {
         setCorIconeCardColeta('rgb(78, 136, 237)');
         setTitleCardColeta('Estabelecendo conexão');
         setIdColeta(await insertColeta(usuario?.nome, usuario?.idade, atividade.nome, Date.now().toString()));
-        BluetoothClientService.sendMessage(
-            `{
-                "iniciarColeta": true,
-                "pararColeta": false,
-                "fileName": "${usuario.nome}_${Date.now}.csv",
-                "frequencia": ${frequencia} 
-            }`
-        )
+        let mensagem = {
+            iniciarColeta: true,
+            pararColeta: false,
+            fileName: `${"teste"}_${Date.now().toString()}.csv`,
+            frequencia: frequencia
+        };
+        const jsonString = JSON.stringify(mensagem);
+        BluetoothClientService.sendMessage(jsonString + "\n")
     }
 
     const pararColeta = async () => {
@@ -126,11 +129,11 @@ export default function StartCollectionScreen() {
         setCorIconeCardColeta('gray');
         setTitleCardColeta('Aguardando informações');
         await finalizarColeta(idColeta, Date.now().toString(), false, 0);
-        BluetoothClientService.sendMessage(
-            `{
-                "pararColeta": true,
-            }`
-        )
+         let mensagem = {
+            pararColeta: true,
+        };
+        const jsonString = JSON.stringify(mensagem);
+        BluetoothClientService.sendMessage(jsonString + '\n');
     }
 
     return (
