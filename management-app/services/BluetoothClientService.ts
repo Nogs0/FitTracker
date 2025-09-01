@@ -126,8 +126,8 @@ class BluetoothClientService {
       try {
         await this.connectedDevice.disconnect();
         console.log("Desconectado do servidor.");
-      } catch (err) {
-        console.error("Erro ao desconectar:", err);
+      } catch {
+        
       }
       this.connectedDevice = null;
     }

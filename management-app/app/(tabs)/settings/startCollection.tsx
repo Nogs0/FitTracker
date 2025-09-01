@@ -22,16 +22,14 @@ export default function StartCollectionScreen() {
     useEffect(() => {
         BluetoothClientService.requestBluetoothPermission()
             .then(() => {
-                const loadDevices = async () => {
-                    const bonded = await BluetoothClientService.getBondedDevices();
-                    setBluetoothDevices(bonded);
-                };
-                loadDevices();
-            })
-
-        // return () => {
-        //     BluetoothClientService.disconnect();
-        // };
+                BluetoothClientService.disconnect().then(() => {
+                    const loadDevices = async () => {
+                        const bonded = await BluetoothClientService.getBondedDevices();
+                        setBluetoothDevices(bonded);
+                    };
+                    loadDevices();
+                })
+            });
     }, []);
 
     const connect = async (device: any) => {
@@ -46,10 +44,6 @@ export default function StartCollectionScreen() {
         catch {
             Alert.alert(`Conexão falhou`, `Erro desconhecido ao tentar se conectar com o dispositivo: \n${device.name}`)
         }
-    };
-
-    const sendTest = () => {
-        BluetoothClientService.sendMessage("Olá do cliente!");
     };
 
     useFocusEffect(
@@ -113,7 +107,8 @@ export default function StartCollectionScreen() {
         let mensagem = {
             iniciarColeta: true,
             pararColeta: false,
-            fileName: `${"teste"}_${Date.now().toString()}.csv`,
+            nomeUsuario: usuario.nome,
+            nomeAtividade: atividade.nome,
             frequencia: frequencia
         };
         const jsonString = JSON.stringify(mensagem);
@@ -129,8 +124,10 @@ export default function StartCollectionScreen() {
         setCorIconeCardColeta('gray');
         setTitleCardColeta('Aguardando informações');
         await finalizarColeta(idColeta, Date.now().toString(), false, 0);
-         let mensagem = {
+        let mensagem = {
             pararColeta: true,
+            nomeUsuario: usuario.nome,
+            nomeAtividade: atividade.nome,
         };
         const jsonString = JSON.stringify(mensagem);
         BluetoothClientService.sendMessage(jsonString + '\n');

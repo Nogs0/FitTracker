@@ -5,16 +5,17 @@ import { Accelerometer, Barometer, Magnetometer, Gyroscope } from "expo-sensors"
 import RNFS from 'react-native-fs';
 import BluetoothServerService from '@/services/BluetoothServerService';
 import * as Sharing from 'expo-sharing';
-import { jsiConfigureProps } from 'react-native-reanimated/lib/typescript/core';
 
 export default function Index() {
-  const [messages, setMessages] = useState<string[]>([]);
-  const [connected, setConnected] = useState(false);
-  const [coletaIniciada, setColetaIniciada] = useState(false);
+  const [dadosIniciaisParaColeta, setDadosIniciaisParaColeta] = useState<any>();
+  const [servidorLigado, setServidorLigado] = useState(false);
   const [coletaFinalizada, setColetaFinalizada] = useState(false);
+  const [textoBotaoBluetooth, setTextoBotaoBluetooth] = useState("Iniciar Bluetooth");
+  const [corBotaoBluetooth, setCorBotaoBluetooth] = useState('#4182ff');
+  const [corStatusColeta, setCorStatusColeta] = useState<string>('gray');
+  const [textoColeta, setTextoColeta] = useState<string>('Servidor Desligado');
 
-  const fileUri = RNFS.DownloadDirectoryPath + "/relatoriosSensores/";
-  const [fileName, setFileName] = useState("teste.csv");
+  const fileUri = RNFS.DownloadDirectoryPath + "/";
   const subscriptionRefs = useRef<any[]>([]);
   const buffer = useRef<any[]>([]);
   const intervalRef = useRef<number>(0);
@@ -39,33 +40,48 @@ export default function Index() {
   useEffect(() => {
   });
 
-  const aceitarConexoes = async () => {
-    setTextoColeta("Disponível");
-    BluetoothServerService.startServer(
-      (device) => {
-        console.log("Conectado com:", device.name);
-        setConnected(true);
-        setCorStatusColeta("blue")
-        setTextoColeta("Conectado");
-      },
-      (msg) => {
-        setMessages((prev) => [...prev, msg]);
-        if (stringCanBeConvertedToJSON(msg)) {
-          let convertedJSON = JSON.parse(msg);
-          if (convertedJSON.iniciarColeta) {
-            startLogging(convertedJSON);
-            setFileName(convertedJSON.fileName);
+  const toggleConexoes = async () => {
+    if (servidorLigado) {
+      BluetoothServerService.stopServer().then(() => {
+        setServidorLigado(false);
+        setTextoColeta("Servidor Desligado");
+        setTextoBotaoBluetooth("Iniciar Bluetooth");
+        setCorBotaoBluetooth("#4182ff");
+        setCorStatusColeta("gray");
+      })
+    }
+    else {
+      setTextoColeta("Servidor Disponível");
+      setTextoBotaoBluetooth("Parar Bluetooth");
+      setCorBotaoBluetooth("#e53935");
+      setCorStatusColeta("#3dfff9");
+      setServidorLigado(true);
+      BluetoothServerService.startServer(
+        (device) => {
+          console.log("Conectado com:", device.name);
+          setCorStatusColeta("blue");
+          setTextoColeta("Conectado");
+        },
+        (msg) => {
+          console.log(msg)
+          if (stringCanBeConvertedToJSON(msg)) {
+            let convertedJSON = JSON.parse(msg);
+            if (convertedJSON.iniciarColeta) {
+              setDadosIniciaisParaColeta(convertedJSON);
+              startLogging(convertedJSON);
+            }
+            if (convertedJSON.pararColeta) {
+              console.log(convertedJSON)
+              stopLogging(convertedJSON.nomeUsuario, convertedJSON.nomeAtividade);
+            }
           }
-          if (convertedJSON.pararColeta)
-            stopLogging();
-        }
-      });
+        });
+    }
   }
 
   const startLogging = async (dadosDaColeta: any) => {
-    setColetaIniciada(true);
-
-    RNFS.writeFile(fileUri + fileName, 'timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n', 'utf8')
+    const fileName = fileUri + dadosDaColeta.nomeUsuario + dadosDaColeta.nomeAtividade + '.csv';
+    RNFS.writeFile(fileName, 'timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n', 'utf8')
       .then(() => console.log('Arquivo CSV criado'))
       .catch(err => console.log('Erro ao criar CSV:', err));
 
@@ -108,7 +124,7 @@ export default function Index() {
       if (buffer.current.length >= 100) {
         const dataToWrite = buffer.current.join('');
         buffer.current = [];
-        RNFS.appendFile(fileUri + fileName, dataToWrite, 'utf8')
+        RNFS.appendFile(fileName, dataToWrite, 'utf8')
           .catch(err => console.log('Erro ao escrever CSV:', err));
       }
     }, 100);
@@ -117,17 +133,18 @@ export default function Index() {
     setTextoColeta('Em Andamento');
   };
 
-  const stopLogging = () => {
+  const stopLogging = (nomeUsuario: string, nomeAtividade: string) => {
     intervalRef.current && clearInterval(intervalRef.current);
-
+    console.log(dadosIniciaisParaColeta)
     // Grava qualquer dado restante
     if (buffer.current.length > 0) {
       const dataToWrite = buffer.current.join('');
       buffer.current = [];
-      RNFS.appendFile(fileUri + fileName, dataToWrite, 'utf8').catch(err => console.log('Erro ao finalizar CSV:', err));
+      RNFS.appendFile(fileUri + nomeUsuario + nomeAtividade + '.csv', dataToWrite, 'utf8').catch(err => console.log('Erro ao finalizar CSV:', err));
     }
     setCorStatusColeta('green');
     setTextoColeta('Finalizado');
+    setColetaFinalizada(true);
   };
 
   const compartilharColeta = async () => {
@@ -138,7 +155,7 @@ export default function Index() {
     }
 
     try {
-      await Sharing.shareAsync("file://" + fileUri, {
+      await Sharing.shareAsync("file://" + fileUri + dadosIniciaisParaColeta.nomeUsuario + dadosIniciaisParaColeta.nomeAtividade + '.csv', {
         mimeType: 'text/csv',
         dialogTitle: 'Compartilhar a coleta',
       });
@@ -149,13 +166,10 @@ export default function Index() {
   }
 
   const excluirColeta = async () => {
-    if (await RNFS.exists(fileUri + fileName)) {
-      await RNFS.unlink(fileUri + fileName)
+    if (await RNFS.exists(fileUri + dadosIniciaisParaColeta.fileName)) {
+      await RNFS.unlink(fileUri + dadosIniciaisParaColeta.fileName)
     }
   }
-
-  const [corStatusColeta, setCorStatusColeta] = useState<string>('gray');
-  const [textoColeta, setTextoColeta] = useState<string>('Aguardando Conexão');
 
   return (
     <SafeAreaView style={styles.mainContainer}>
@@ -173,22 +187,22 @@ export default function Index() {
           width: '100%',
           alignItems: 'center',
           justifyContent: 'center',
-          backgroundColor: '#4182ff',
+          backgroundColor: corBotaoBluetooth,
           padding: 10,
         }}
-        onPress={aceitarConexoes}>
-        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>Aceitar conexões</Text>
+        onPress={toggleConexoes}>
+        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>{textoBotaoBluetooth}</Text>
       </TouchableOpacity>
-      {coletaIniciada ?
+      {/* {coletaIniciada ?
         <View style={styles.card}>
           <View style={styles.titleContainer}>
             <Feather name='cpu' size={25} color={'rgb(78, 136, 237)'} />
-            <Text style={styles.titleText}>Informações dos sensores utilizados</Text>
+            <Text style={styles.titleText}>Frequência utilizada</Text>
           </View>
           <View style={styles.cardBody}>
           </View>
         </View>
-        : <></>}
+        : <></>} */}
       {coletaFinalizada ?
         <View style={styles.card}>
           <View style={styles.titleContainer}>
@@ -200,7 +214,7 @@ export default function Index() {
           <View>
             <View style={styles.card}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text>{fileName}</Text>
+                <Text>{dadosIniciaisParaColeta.fileName}</Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
                   <TouchableOpacity onPress={excluirColeta}>
                     <Feather name='trash' size={20}></Feather>

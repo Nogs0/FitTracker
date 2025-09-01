@@ -80,10 +80,6 @@ class BluetoothServerService {
     try {
 
       await this.requestBluetoothPermission();
-      // if (await RNBluetoothClassic.isBluetoothEnabled()) {
-      //   console.log('já ativo')
-      //   return;
-      // }
       const device = await RNBluetoothClassic.accept({ delimiter: "\n" });
       this.connectedDevice = device;
 
@@ -116,6 +112,9 @@ class BluetoothServerService {
    * Desconecta e limpa os listeners
    */
   public async stopServer(): Promise<void> {
+
+    await RNBluetoothClassic.cancelAccept();
+
     if (this.dataListener) {
       this.dataListener.remove();
       this.dataListener = null;
@@ -125,8 +124,7 @@ class BluetoothServerService {
       try {
         await this.connectedDevice.disconnect();
         console.log("Cliente desconectado.");
-      } catch (err) {
-        console.error("Erro ao desconectar:", err);
+      } catch {
       }
       this.connectedDevice = null;
     }
