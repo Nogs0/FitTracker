@@ -5,6 +5,7 @@ import { useCallback, useState } from 'react';
 import { deleteColeta, getColetas } from '@/data/database';
 import { useFocusEffect } from 'expo-router';
 import ModalDelete from '@/components/ModalDelete';
+import Cores from '@/styles/cores';
 
 export default function CollectionScreen() {
   const [listColetas, setListColetas] = useState<any[]>([]);
@@ -44,11 +45,12 @@ export default function CollectionScreen() {
             <Text>{item.idadeUsuario} anos</Text>
           </View>
           <TouchableOpacity onPress={() => excluirColeta(item.id)} style={{ padding: 5 }}>
-            <Feather name='trash' color={'gray'} size={20}></Feather>
+            <Feather name='trash' color={Cores.cinza} size={20}></Feather>
           </TouchableOpacity>
         </View>
         <Text style={[stylesGlobal.subtitleText,
-        (item.conexaoEstabelecida ? { color: 'green' } : { color: 'red' })]}>{item.conexaoEstabelecida ? 'Conexão estabelecida com sucesso' : 'Conexão não estabelecida'}</Text>
+        (item.conexaoEstabelecida ? { color: Cores.verde } : { color: Cores.vermelho })]}>
+          {item.conexaoEstabelecida ? 'Conexão estabelecida com sucesso' : 'Conexão não estabelecida'}</Text>
         <View style={stylesCollections.containerDateTime}>
           <View style={stylesCollections.containerTextDateTime}>
             <Ionicons name='calendar-clear-outline' size={14}></Ionicons>
@@ -129,12 +131,12 @@ const stylesCollections = StyleSheet.create({
     fontSize: 12
   },
   cardRelatorioTempo: {
-    backgroundColor: 'rgb(200, 255, 214)'
+    backgroundColor: Cores.verdeClaro
   },
   cardRelatorioRegistros: {
-    backgroundColor: 'rgb(231, 247, 255)'
+    backgroundColor: Cores.azulClaro
   },
   cardRelatorioExemplo: {
-    backgroundColor: 'rgb(255, 231, 231)'
+    backgroundColor: Cores.vermelhoClaro
   }
 })

@@ -1,19 +1,21 @@
 import { SafeAreaView, StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Feather, FontAwesome } from '@expo/vector-icons';
-import { useEffect, useRef, useState } from 'react';
+import { useRef, useState } from 'react';
 import { Accelerometer, Barometer, Magnetometer, Gyroscope } from "expo-sensors";
 import RNFS from 'react-native-fs';
 import BluetoothServerService from '@/services/BluetoothServerService';
 import * as Sharing from 'expo-sharing';
+import Cores from '@/styles/cores';
 
 export default function Index() {
   const [dadosIniciaisParaColeta, setDadosIniciaisParaColeta] = useState<any>();
   const [servidorLigado, setServidorLigado] = useState(false);
   const [coletaFinalizada, setColetaFinalizada] = useState(false);
   const [textoBotaoBluetooth, setTextoBotaoBluetooth] = useState("Iniciar Bluetooth");
-  const [corBotaoBluetooth, setCorBotaoBluetooth] = useState('#4182ff');
-  const [corStatusColeta, setCorStatusColeta] = useState<string>('gray');
+  const [corBotaoBluetooth, setCorBotaoBluetooth] = useState(Cores.azul);
+  const [corStatusColeta, setCorStatusColeta] = useState<string>(Cores.cinza);
   const [textoColeta, setTextoColeta] = useState<string>('Servidor Desligado');
+  const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
 
   const fileUri = RNFS.DownloadDirectoryPath + "/";
   const subscriptionRefs = useRef<any[]>([]);
@@ -37,8 +39,6 @@ export default function Index() {
       return false;
     }
   }
-  useEffect(() => {
-  });
 
   const toggleConexoes = async () => {
     if (servidorLigado) {
@@ -46,20 +46,20 @@ export default function Index() {
         setServidorLigado(false);
         setTextoColeta("Servidor Desligado");
         setTextoBotaoBluetooth("Iniciar Bluetooth");
-        setCorBotaoBluetooth("#4182ff");
-        setCorStatusColeta("gray");
+        setCorBotaoBluetooth(Cores.azul);
+        setCorStatusColeta(Cores.cinza);
       })
     }
     else {
       setTextoColeta("Servidor Disponível");
       setTextoBotaoBluetooth("Parar Bluetooth");
-      setCorBotaoBluetooth("#e53935");
-      setCorStatusColeta("#3dfff9");
+      setCorBotaoBluetooth(Cores.vermelho);
+      setCorStatusColeta(Cores.ciano);
       setServidorLigado(true);
       BluetoothServerService.startServer(
         (device) => {
           console.log("Conectado com:", device.name);
-          setCorStatusColeta("blue");
+          setCorStatusColeta(Cores.azul);
           setTextoColeta("Conectado");
         },
         (msg) => {
@@ -80,6 +80,9 @@ export default function Index() {
   }
 
   const startLogging = async (dadosDaColeta: any) => {
+    setColetaEmAndamento(true);
+    setCorBotaoBluetooth(Cores.cinza);
+
     const fileName = fileUri + dadosDaColeta.nomeUsuario + dadosDaColeta.nomeAtividade + '.csv';
     RNFS.writeFile(fileName, 'timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n', 'utf8')
       .then(() => console.log('Arquivo CSV criado'))
@@ -129,11 +132,14 @@ export default function Index() {
       }
     }, 100);
 
-    setCorStatusColeta('orange');
+    setCorStatusColeta(Cores.laranja);
     setTextoColeta('Em Andamento');
   };
 
   const stopLogging = (nomeUsuario: string, nomeAtividade: string) => {
+    setColetaEmAndamento(false);
+    setCorBotaoBluetooth(Cores.vermelho);
+
     intervalRef.current && clearInterval(intervalRef.current);
     console.log(dadosIniciaisParaColeta)
     // Grava qualquer dado restante
@@ -142,7 +148,7 @@ export default function Index() {
       buffer.current = [];
       RNFS.appendFile(fileUri + nomeUsuario + nomeAtividade + '.csv', dataToWrite, 'utf8').catch(err => console.log('Erro ao finalizar CSV:', err));
     }
-    setCorStatusColeta('green');
+    setCorStatusColeta(Cores.verde);
     setTextoColeta('Finalizado');
     setColetaFinalizada(true);
   };
@@ -182,21 +188,15 @@ export default function Index() {
           <Text style={styles.titleColetaText}>{textoColeta}</Text>
         </View>
       </View>
-      <TouchableOpacity style={
-        {
-          width: '100%',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: corBotaoBluetooth,
-          padding: 10,
-        }}
-        onPress={toggleConexoes}>
-        <Text style={{ color: 'white', fontWeight: 'bold', fontSize: 18 }}>{textoBotaoBluetooth}</Text>
+      <TouchableOpacity style={[styles.botaoBluetooth, { backgroundColor: corBotaoBluetooth }]}
+        onPress={toggleConexoes}
+        disabled={coletaEmAndamento}>
+        <Text style={styles.textoBotaoBluetooth}>{textoBotaoBluetooth}</Text>
       </TouchableOpacity>
       {/* {coletaIniciada ?
         <View style={styles.card}>
           <View style={styles.titleContainer}>
-            <Feather name='cpu' size={25} color={'rgb(78, 136, 237)'} />
+            <Feather name='cpu' size={25} color={Cores.azul} />
             <Text style={styles.titleText}>Frequência utilizada</Text>
           </View>
           <View style={styles.cardBody}>
@@ -206,7 +206,7 @@ export default function Index() {
       {coletaFinalizada ?
         <View style={styles.card}>
           <View style={styles.titleContainer}>
-            <Feather name='file' size={25} color={'rgb(255, 150, 51)'} />
+            <Feather name='file' size={25} color={Cores.laranja} />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', flex: 1 }}>
               <Text style={styles.titleText}>Informações da coleta</Text>
             </View>
@@ -242,7 +242,7 @@ const styles = StyleSheet.create({
   card: {
     padding: 15,
     borderRadius: 5,
-    backgroundColor: 'white',
+    backgroundColor: Cores.branco,
     elevation: 3
   },
   cardBody: {
@@ -290,5 +290,18 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     alignItems: 'center',
     justifyContent: 'center'
+  },
+  botaoBluetooth:
+  {
+    width: '100%',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: 10,
+  },
+  textoBotaoBluetooth:
+  {
+    color: Cores.branco,
+    fontWeight: 'bold',
+    fontSize: 18
   }
 });

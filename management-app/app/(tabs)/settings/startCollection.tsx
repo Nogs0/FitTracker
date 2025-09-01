@@ -1,4 +1,4 @@
-import { Keyboard, KeyboardAvoidingView, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, PermissionsAndroid, Alert, Platform } from "react-native";
+import { Keyboard, KeyboardAvoidingView, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, Alert } from "react-native";
 import stylesGlobal from '@/styles/global';
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
@@ -8,6 +8,7 @@ import { finalizarColeta, getAtividades, getUsuarios, insertColeta } from "@/dat
 import { useNavigationBlock } from '@/contexts/NavigationBlockContext';
 import BluetoothClientService from "@/services/BluetoothClientService";
 import ModalSelectDeviceBluetooh from "@/components/ModalSelectDeviceBluetooh";
+import Cores from "@/styles/cores";
 
 export default function StartCollectionScreen() {
 
@@ -92,7 +93,7 @@ export default function StartCollectionScreen() {
         setListaDeAtividades(atividades);
     };
 
-    const [corIconeCardColeta, setCorIconeCardColeta] = useState<string>('gray');
+    const [corIconeCardColeta, setCorIconeCardColeta] = useState<string>(Cores.cinza);
     const [titleCardColeta, setTitleCardColeta] = useState<string>('Aguardando informações');
 
     const iniciarColeta = async () => {
@@ -101,7 +102,7 @@ export default function StartCollectionScreen() {
 
         setBloqueado(true);
         setColetaEmAndamento(true);
-        setCorIconeCardColeta('rgb(78, 136, 237)');
+        setCorIconeCardColeta(Cores.azul);
         setTitleCardColeta('Estabelecendo conexão');
         setIdColeta(await insertColeta(usuario?.nome, usuario?.idade, atividade.nome, Date.now().toString()));
         let mensagem = {
@@ -161,7 +162,7 @@ export default function StartCollectionScreen() {
                         </View>
                         <View style={stylesGlobal.card}>
                             <View style={stylesGlobal.titleContainer}>
-                                <FontAwesome name='gears' size={25} color="rgb(52,184,55)" />
+                                <FontAwesome name='gears' size={25} color={Cores.verde} />
                                 <Text style={stylesGlobal.titleText}>Configuração da coleta</Text>
                             </View>
                             <Text style={stylesGlobal.subtitleText}>Selecione o usuário e a atividade física</Text>
@@ -225,7 +226,7 @@ export default function StartCollectionScreen() {
                                 <TouchableOpacity style={[stylesStartCollection.buttonStartStopCollection, stylesStartCollection.buttonStopCollection]}
                                     onPress={pararColeta}>
                                     <Text style={[stylesGlobal.buttonLabel, stylesStartCollection.buttonLabelStartCollection]}>Parar coleta</Text>
-                                    <FontAwesome name='stop' size={30} color="white" />
+                                    <FontAwesome name='stop' size={30} color={Cores.branco} />
                                 </TouchableOpacity>
                                 :
                                 <TouchableOpacity style={[stylesStartCollection.buttonStartStopCollection, stylesStartCollection.buttonStartCollection,
@@ -233,7 +234,7 @@ export default function StartCollectionScreen() {
                                     disabled={!usuario || !atividade}
                                     onPress={iniciarColeta}>
                                     <Text style={[stylesGlobal.buttonLabel, stylesStartCollection.buttonLabelStartCollection]}>Iniciar coleta</Text>
-                                    <FontAwesome name='play' size={30} color="white" />
+                                    <FontAwesome name='play' size={30} color={Cores.branco} />
                                 </TouchableOpacity>
                             }
                         </View>
@@ -257,23 +258,23 @@ const stylesStartCollection = StyleSheet.create({
     buttonStartStopCollection: {
         flexDirection: 'row',
         padding: 10,
-        color: 'white',
+        color: Cores.branco,
         alignItems: 'center',
         justifyContent: 'space-evenly',
         borderRadius: 5,
     },
     buttonStopCollection: {
-        backgroundColor: 'rgb(184, 52, 52)'
+        backgroundColor: Cores.vermelho
     },
     buttonStartCollection: {
-        backgroundColor: 'rgb(52,184,55)'
+        backgroundColor: Cores.verde
     },
     pickerStyle: {
         width: '100%'
     },
     buttonVoltar: {
         flexDirection: 'row',
-        backgroundColor: 'white',
+        backgroundColor: Cores.branco,
         alignItems: 'center',
         width: 'auto',
         padding: 5,
