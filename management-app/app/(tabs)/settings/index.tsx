@@ -215,7 +215,7 @@ export default function SettingsScreen() {
             </View>
             <TouchableOpacity
               style={[stylesSettings.buttonStartDataCollection,
-              (listaDeAtividades.length === 0 || listaDeUsuarios.length === 0 ? stylesGlobal.buttonDisabled : {})]}
+              (listaDeAtividades.length === 0 || listaDeUsuarios.length === 0 ? stylesGlobal.buttonDisabled : { opacity: 1})]}
               disabled={listaDeAtividades.length === 0 || listaDeUsuarios.length === 0}
               onPress={() => router.push('/settings/startCollection')}>
               <Text style={[stylesGlobal.buttonLabel, stylesSettings.buttonLabelStartDataCollection,]}>Iniciar coleta de dados</Text>
@@ -249,17 +249,6 @@ const stylesSettings = StyleSheet.create({
   buttonStartDataCollection: {
     flexDirection: 'row',
     padding: 10,
-    color: Cores.branco,
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    borderRadius: 5,
-    backgroundColor: Cores.ciano
-  },
-  buttonStartDataCollectionDisabled: {
-    opacity: 0.5,
-    flexDirection: 'row',
-    padding: 10,
-    color: Cores.branco,
     alignItems: 'center',
     justifyContent: 'space-evenly',
     borderRadius: 5,

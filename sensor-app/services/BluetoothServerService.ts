@@ -5,6 +5,12 @@ import RNBluetoothClassic, {
 } from "react-native-bluetooth-classic";
 
 type ListenerCallback = (data: string) => void;
+export type JsonBluetooth = {
+  nomeUsuario: string;
+  nomeAtividade: string;
+  frequenciaMilissegundos: number;
+  frequenciaHertz: number;
+};
 
 class BluetoothServerService {
   private connectedDevice: BluetoothDevice | null = null;
@@ -89,6 +95,8 @@ class BluetoothServerService {
 
       // Ouvindo mensagens recebidas
       this.dataListener = device.onDataReceived((event) => {
+        if (event.data === "encerrarConexao")
+          device.disconnect();
         if (onMessage) onMessage(event.data);
       });
     } catch (err) {

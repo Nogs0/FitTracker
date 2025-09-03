@@ -1,13 +1,18 @@
 import { SafeAreaView, StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
 import { Feather, FontAwesome } from '@expo/vector-icons';
-import { useRef, useState } from 'react';
-import { Accelerometer, Barometer, Magnetometer, Gyroscope } from "expo-sensors";
+import { useEffect, useState } from 'react';
 import RNFS from 'react-native-fs';
-import BluetoothServerService from '@/services/BluetoothServerService';
 import * as Sharing from 'expo-sharing';
 import Cores from '@/styles/cores';
+import BluetoothServerService from '@/services/BluetoothServerService';
+import SensorLoggerService from "@/services/SensoresService";
 
 export default function Index() {
+
+  useEffect(() => {
+    SensorLoggerService.requestStoragePermission()
+  }, [])
+  let dadosParaColeta: any = {};
   const [dadosIniciaisParaColeta, setDadosIniciaisParaColeta] = useState<any>();
   const [servidorLigado, setServidorLigado] = useState(false);
   const [coletaFinalizada, setColetaFinalizada] = useState(false);
@@ -18,18 +23,6 @@ export default function Index() {
   const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
 
   const fileUri = RNFS.DownloadDirectoryPath + "/";
-  const subscriptionRefs = useRef<any[]>([]);
-  const buffer = useRef<any[]>([]);
-  const intervalRef = useRef<number>(0);
-  const latestData = useRef({
-    ax: 0, ay: 0, az: 0,
-    gx: 0, gy: 0, gz: 0,
-    mx: 0, my: 0, mz: 0,
-    barometer: 0,
-  });
-
-  const contadorDeRegistros = useRef<number>(0);
-
   const stringCanBeConvertedToJSON = (msg: string) => {
     try {
       JSON.parse(msg);
@@ -63,95 +56,51 @@ export default function Index() {
           setTextoColeta("Conectado");
         },
         (msg) => {
-          console.log(msg)
+          if (msg === "encerrarConexao") {
+            BluetoothServerService.stopServer().then(() => {
+              setTextoColeta("Conexao encerrada");
+              setServidorLigado(false);
+              setColetaFinalizada(false);
+              setColetaEmAndamento(false);
+              setCorStatusColeta(Cores.cinza);
+              setTextoBotaoBluetooth("Iniciar Bluetooth");
+              setCorBotaoBluetooth(Cores.azul);
+            })
+            SensorLoggerService.stopLogging(dadosParaColeta.nomeUsuario, dadosParaColeta.nomeAtividade, dadosParaColeta.frequenciaHertz, () => {
+              if (coletaEmAndamento)
+                Alert.alert("O arquivo gerado pela coleta em andamento estará na pasta de 'Downloads' do dispositiivo.")
+            });
+          }
           if (stringCanBeConvertedToJSON(msg)) {
             let convertedJSON = JSON.parse(msg);
+            dadosParaColeta = convertedJSON;
             if (convertedJSON.iniciarColeta) {
               setDadosIniciaisParaColeta(convertedJSON);
-              startLogging(convertedJSON);
+              SensorLoggerService.startLogging(convertedJSON, () => {
+                setColetaEmAndamento(true);
+                setTextoColeta("Em andamento");
+                setCorStatusColeta(Cores.verde);
+                setCorBotaoBluetooth(Cores.cinza);
+              });
             }
             if (convertedJSON.pararColeta) {
-              console.log(convertedJSON)
-              stopLogging(convertedJSON.nomeUsuario, convertedJSON.nomeAtividade);
+              SensorLoggerService.stopLogging(convertedJSON.nomeUsuario, convertedJSON.nomeAtividade, convertedJSON.frequenciaHertz, (qtdRegistros) => {
+                setColetaFinalizada(true);
+                setColetaEmAndamento(false);
+                setTextoColeta("Coleta finalizada");
+                setCorStatusColeta(Cores.laranja);
+                setCorBotaoBluetooth(Cores.vermelho);
+                const jsonEncerrarColeta = {
+                  idColeta: convertedJSON.idColeta,
+                  qtdDadosColetados: qtdRegistros
+                }
+                BluetoothServerService.sendMessage(JSON.stringify(jsonEncerrarColeta));
+              });
             }
           }
         });
     }
   }
-
-  const startLogging = async (dadosDaColeta: any) => {
-    setColetaEmAndamento(true);
-    setCorBotaoBluetooth(Cores.cinza);
-
-    const fileName = fileUri + dadosDaColeta.nomeUsuario + dadosDaColeta.nomeAtividade + '.csv';
-    RNFS.writeFile(fileName, 'timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n', 'utf8')
-      .then(() => console.log('Arquivo CSV criado'))
-      .catch(err => console.log('Erro ao criar CSV:', err));
-
-    // Taxa de 10 Hz (100ms)
-    Accelerometer.setUpdateInterval(dadosDaColeta.frequencia);
-    Gyroscope.setUpdateInterval(dadosDaColeta.frequencia);
-    Magnetometer.setUpdateInterval(dadosDaColeta.frequencia);
-    Barometer.setUpdateInterval(dadosDaColeta.frequencia);
-
-    // Criar listeners
-    subscriptionRefs.current = [
-      Accelerometer.addListener(({ x, y, z }) => {
-        latestData.current.ax = x;
-        latestData.current.ay = y;
-        latestData.current.az = z;
-      }),
-      Gyroscope.addListener(({ x, y, z }) => {
-        latestData.current.gx = x;
-        latestData.current.gy = y;
-        latestData.current.gz = z;
-      }),
-      Magnetometer.addListener(({ x, y, z }) => {
-        latestData.current.mx = x;
-        latestData.current.my = y;
-        latestData.current.mz = z;
-      }),
-      Barometer.addListener(({ pressure }) => {
-        latestData.current.barometer = pressure;
-      }),
-    ];
-
-    intervalRef.current = setInterval(async () => {
-      const d = latestData.current;
-      const timestamp = Date.now();
-      const line = `${timestamp},${d.ax},${d.ay},${d.az},${d.gx},${d.gy},${d.gz},${d.mx},${d.my},${d.mz},${d.barometer}\n`;
-      contadorDeRegistros.current += 1;
-      buffer.current.push(line);
-
-      // Grava em bloco a cada 100 linhas (~1,6s a 60Hz)
-      if (buffer.current.length >= 100) {
-        const dataToWrite = buffer.current.join('');
-        buffer.current = [];
-        RNFS.appendFile(fileName, dataToWrite, 'utf8')
-          .catch(err => console.log('Erro ao escrever CSV:', err));
-      }
-    }, 100);
-
-    setCorStatusColeta(Cores.laranja);
-    setTextoColeta('Em Andamento');
-  };
-
-  const stopLogging = (nomeUsuario: string, nomeAtividade: string) => {
-    setColetaEmAndamento(false);
-    setCorBotaoBluetooth(Cores.vermelho);
-
-    intervalRef.current && clearInterval(intervalRef.current);
-    console.log(dadosIniciaisParaColeta)
-    // Grava qualquer dado restante
-    if (buffer.current.length > 0) {
-      const dataToWrite = buffer.current.join('');
-      buffer.current = [];
-      RNFS.appendFile(fileUri + nomeUsuario + nomeAtividade + '.csv', dataToWrite, 'utf8').catch(err => console.log('Erro ao finalizar CSV:', err));
-    }
-    setCorStatusColeta(Cores.verde);
-    setTextoColeta('Finalizado');
-    setColetaFinalizada(true);
-  };
 
   const compartilharColeta = async () => {
     const isSharingAvailable = await Sharing.isAvailableAsync();
@@ -161,19 +110,13 @@ export default function Index() {
     }
 
     try {
-      await Sharing.shareAsync("file://" + fileUri + dadosIniciaisParaColeta.nomeUsuario + dadosIniciaisParaColeta.nomeAtividade + '.csv', {
+      await Sharing.shareAsync("file://" + fileUri + dadosIniciaisParaColeta.nomeUsuario + dadosIniciaisParaColeta.nomeAtividade + dadosIniciaisParaColeta.frequenciaHertz + 'Hz.csv', {
         mimeType: 'text/csv',
         dialogTitle: 'Compartilhar a coleta',
       });
     } catch (error) {
       console.error('Erro ao compartilhar o arquivo:', error);
       Alert.alert('Erro', 'Não foi possível compartilhar suas coleções.');
-    }
-  }
-
-  const excluirColeta = async () => {
-    if (await RNFS.exists(fileUri + dadosIniciaisParaColeta.fileName)) {
-      await RNFS.unlink(fileUri + dadosIniciaisParaColeta.fileName)
     }
   }
 
@@ -193,32 +136,27 @@ export default function Index() {
         disabled={coletaEmAndamento}>
         <Text style={styles.textoBotaoBluetooth}>{textoBotaoBluetooth}</Text>
       </TouchableOpacity>
-      {/* {coletaIniciada ?
+      {dadosIniciaisParaColeta ?
         <View style={styles.card}>
           <View style={styles.titleContainer}>
             <Feather name='cpu' size={25} color={Cores.azul} />
-            <Text style={styles.titleText}>Frequência utilizada</Text>
-          </View>
-          <View style={styles.cardBody}>
+            <Text style={styles.titleText}>Frequência utilizada: {dadosIniciaisParaColeta.frequenciaHertz}Hz</Text>
           </View>
         </View>
-        : <></>} */}
+        : <></>}
       {coletaFinalizada ?
         <View style={styles.card}>
           <View style={styles.titleContainer}>
             <Feather name='file' size={25} color={Cores.laranja} />
             <View style={{ flexDirection: 'row', justifyContent: 'space-between', flex: 1 }}>
-              <Text style={styles.titleText}>Informações da coleta</Text>
+              <Text style={styles.titleText}>Arquivo coleta</Text>
             </View>
           </View>
-          <View>
+          <View style={{ margin: 10 }}>
             <View style={styles.card}>
               <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text>{dadosIniciaisParaColeta.fileName}</Text>
+                <Text>{dadosIniciaisParaColeta.nomeUsuario + dadosIniciaisParaColeta.nomeAtividade + dadosIniciaisParaColeta.frequenciaHertz + 'Hz.csv'}</Text>
                 <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={excluirColeta}>
-                    <Feather name='trash' size={20}></Feather>
-                  </TouchableOpacity>
                   <TouchableOpacity onPress={compartilharColeta}>
                     <Feather name='share' size={20}></Feather>
                   </TouchableOpacity>
@@ -293,6 +231,7 @@ const styles = StyleSheet.create({
   },
   botaoBluetooth:
   {
+    borderRadius: 5,
     width: '100%',
     alignItems: 'center',
     justifyContent: 'center',

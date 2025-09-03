@@ -1,11 +1,7 @@
 import { Accelerometer, Gyroscope, Magnetometer, Barometer } from "expo-sensors";
 import RNFS from "react-native-fs";
-
-type ColetaData = {
-  nomeUsuario: string;
-  nomeAtividade: string;
-  frequencia: number;
-};
+import BluetoothServerService, { JsonBluetooth } from "./BluetoothServerService";
+import { PermissionsAndroid } from "react-native";
 
 class SensorLoggerService {
   private fileUri = RNFS.DownloadDirectoryPath + "/";
@@ -18,10 +14,34 @@ class SensorLoggerService {
     mx: 0, my: 0, mz: 0,
     barometer: 0,
   };
+  private contadorDeRegistros = -1;
 
-  public async startLogging(dados: ColetaData, onStart?: () => void) {
-    const fileName = this.fileUri + dados.nomeUsuario + dados.nomeAtividade + ".csv";
-    
+  public async requestStoragePermission() {
+    try {
+      const granted = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
+        {
+          title: "Permissão de Armazenamento",
+          message: "O app precisa salvar arquivos no armazenamento externo.",
+          buttonNeutral: "Perguntar depois",
+          buttonNegative: "Cancelar",
+          buttonPositive: "OK",
+        }
+      );
+      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+        throw new Error("Permissão é obrigatória!");
+      }
+
+      return granted === PermissionsAndroid.RESULTS.GRANTED;
+    } catch (err) {
+      console.warn(err);
+      return false;
+    }
+  }
+
+  public async startLogging(dados: JsonBluetooth, onStart?: () => void) {
+    const fileName = this.fileUri + dados.nomeUsuario + dados.nomeAtividade + dados.frequenciaHertz + "Hz.csv";
+
     await RNFS.writeFile(
       fileName,
       "timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n",
@@ -29,10 +49,10 @@ class SensorLoggerService {
     ).catch(err => console.log("Erro ao criar CSV:", err));
 
     // Ajusta a taxa de atualização
-    Accelerometer.setUpdateInterval(dados.frequencia);
-    Gyroscope.setUpdateInterval(dados.frequencia);
-    Magnetometer.setUpdateInterval(dados.frequencia);
-    Barometer.setUpdateInterval(dados.frequencia);
+    Accelerometer.setUpdateInterval(dados.frequenciaMilissegundos);
+    Gyroscope.setUpdateInterval(dados.frequenciaMilissegundos);
+    Magnetometer.setUpdateInterval(dados.frequenciaMilissegundos);
+    Barometer.setUpdateInterval(dados.frequenciaMilissegundos);
 
     // Adiciona listeners
     this.subscriptions = [
@@ -62,7 +82,7 @@ class SensorLoggerService {
       const timestamp = Date.now();
       const line = `${timestamp},${d.ax},${d.ay},${d.az},${d.gx},${d.gy},${d.gz},${d.mx},${d.my},${d.mz},${d.barometer}\n`;
       this.buffer.push(line);
-
+      this.contadorDeRegistros += this.buffer.length;
       if (this.buffer.length >= 100) {
         const dataToWrite = this.buffer.join("");
         this.buffer = [];
@@ -74,7 +94,7 @@ class SensorLoggerService {
     onStart?.();
   }
 
-  public async stopLogging(nomeUsuario: string, nomeAtividade: string, onStop?: () => void) {
+  public async stopLogging(nomeUsuario: string, nomeAtividade: string, frequenciaHertz: number, onStop?: (qtdRegistros: number) => void) {
     this.intervalRef && clearInterval(this.intervalRef);
 
     // Cancela listeners
@@ -82,14 +102,15 @@ class SensorLoggerService {
     this.subscriptions = [];
 
     // Salva dados restantes
+    this.contadorDeRegistros += this.buffer.length;
     if (this.buffer.length > 0) {
       const dataToWrite = this.buffer.join("");
       this.buffer = [];
-      await RNFS.appendFile(this.fileUri + nomeUsuario + nomeAtividade + ".csv", dataToWrite, "utf8")
+      await RNFS.appendFile(this.fileUri + nomeUsuario + nomeAtividade + frequenciaHertz + "Hz.csv", dataToWrite, "utf8")
         .catch(err => console.log("Erro ao finalizar CSV:", err));
     }
 
-    onStop?.();
+    onStop?.(this.contadorDeRegistros);
   }
 }
 

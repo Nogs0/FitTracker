@@ -1,3 +1,4 @@
+import Cores from '@/styles/cores';
 import { router } from 'expo-router';
 import React from 'react';
 import { View, Text, TouchableOpacity, Modal, StyleSheet, FlatList } from 'react-native';
@@ -6,7 +7,8 @@ export type ModalSelectDeviceBluetoothProps = {
     visible: boolean,
     setVisible: any,
     handleConnect: any,
-    devices: any[]
+    devices: any[],
+    tentandoConectar: boolean
 }
 
 export default function ModalSelectDeviceBluetooh(props: ModalSelectDeviceBluetoothProps) {
@@ -21,21 +23,22 @@ export default function ModalSelectDeviceBluetooh(props: ModalSelectDeviceBlueto
                 <View style={styles.modalContent}>
                     <Text style={styles.title}>Selecionar dispositivo</Text>
                     <FlatList
-                        style={{ width: '100%', marginBottom: 20, padding: 10 }}
+                        style={{ width: '100%', marginBottom: 20, padding: 5 }}
                         data={props.devices}
                         keyExtractor={(item, index) => index.toString()}
                         renderItem={({ item }) => {
                             return (
                                 <TouchableOpacity
+                                    disabled={props.tentandoConectar}
                                     onPress={() => props.handleConnect(item)}
                                     style={{
                                         padding: 5,
                                         borderRadius: 5,
                                         elevation: 3,
                                         justifyContent: 'center',
-                                        width: '90%',
+                                        width: '100%',
                                         height: 40,
-                                        backgroundColor: `#c0ffa4`,
+                                        backgroundColor: Cores.azulClaro,
                                         marginHorizontal: 'auto'
                                     }}>
                                     <Text>
@@ -48,7 +51,7 @@ export default function ModalSelectDeviceBluetooh(props: ModalSelectDeviceBlueto
                     />
 
                     <View style={styles.actions}>
-                        <TouchableOpacity onPress={() => router.back()  } style={styles.cancelButton}>
+                        <TouchableOpacity onPress={() => router.back()} style={styles.cancelButton}>
                             <Text style={styles.cancelText}>Cancelar</Text>
                         </TouchableOpacity>
                     </View>

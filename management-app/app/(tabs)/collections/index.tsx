@@ -26,9 +26,12 @@ export default function CollectionScreen() {
 
   const handleDeleteColeta = async (id: number) => {
     setModalDeleteColetaVisible(false);
-    await deleteColeta(id);
-    setListColetas([]);
-    await carregarColetas();
+    deleteColeta(id).then(() => {
+      getColetas().then((coletas) => {
+        setListColetas(coletas);
+      })
+    }
+    );
   };
 
   const excluirColeta = (id: number) => {
