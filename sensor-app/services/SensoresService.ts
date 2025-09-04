@@ -1,10 +1,11 @@
 import { Accelerometer, Gyroscope, Magnetometer, Barometer } from "expo-sensors";
 import RNFS from "react-native-fs";
-import BluetoothServerService, { JsonBluetooth } from "./BluetoothServerService";
-import { PermissionsAndroid } from "react-native";
+import { JsonBluetooth } from "./BluetoothServerService";
+import { Alert, PermissionsAndroid } from "react-native";
+import DocumentPicker from "react-native-document-picker";
 
 class SensorLoggerService {
-  private fileUri = RNFS.DownloadDirectoryPath + "/";
+  private fileUri = "";
   private subscriptions: any[] = [];
   private buffer: string[] = [];
   private intervalRef: any = null;
@@ -18,7 +19,18 @@ class SensorLoggerService {
 
   public async requestStoragePermission() {
     try {
-      const granted = await PermissionsAndroid.request(
+      const grantedRead = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.READ_EXTERNAL_STORAGE,
+        {
+          title: 'Permissão de acesso',
+          message: 'O app precisa acessar seus arquivos para abrir o CSV.',
+          buttonNeutral: 'Perguntar depois',
+          buttonNegative: 'Cancelar',
+          buttonPositive: 'OK',
+        },
+      );
+
+      const grantedWrite = await PermissionsAndroid.request(
         PermissionsAndroid.PERMISSIONS.WRITE_EXTERNAL_STORAGE,
         {
           title: "Permissão de Armazenamento",
@@ -28,11 +40,12 @@ class SensorLoggerService {
           buttonPositive: "OK",
         }
       );
-      if (granted !== PermissionsAndroid.RESULTS.GRANTED) {
+
+      if (grantedWrite !== PermissionsAndroid.RESULTS.GRANTED || grantedRead !== PermissionsAndroid.RESULTS.GRANTED) {
         throw new Error("Permissão é obrigatória!");
       }
 
-      return granted === PermissionsAndroid.RESULTS.GRANTED;
+      return grantedWrite === PermissionsAndroid.RESULTS.GRANTED && grantedRead === PermissionsAndroid.RESULTS.GRANTED;
     } catch (err) {
       console.warn(err);
       return false;
@@ -40,6 +53,13 @@ class SensorLoggerService {
   }
 
   public async startLogging(dados: JsonBluetooth, onStart?: () => void) {
+    const pasta = await DocumentPicker.pickDirectory();
+
+    if (!pasta) {
+      Alert.alert("Cancelado", "Você não escolheu um diretório.");
+      return;
+    }
+    this.fileUri = pasta.uri + '/';
     const fileName = this.fileUri + dados.nomeUsuario + dados.nomeAtividade + dados.frequenciaHertz + "Hz.csv";
 
     await RNFS.writeFile(
