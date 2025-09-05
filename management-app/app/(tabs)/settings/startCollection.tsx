@@ -19,6 +19,36 @@ export default function StartCollectionScreen() {
     const [bluetoothDevices, setBluetoothDevices] = useState<any[]>([]);
     const [tentandoConectar, setTentandoConectar] = useState<boolean>(false);
 
+    const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
+    const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
+    const loading = !listaDeAtividades || !listaDeUsuarios;
+    const [listaDeFrequencias] = useState<any[]>([{
+        hertz: 10,
+        milissegundos: 100
+    },
+    {
+        hertz: 15,
+        milissegundos: 66
+    },
+    {
+        hertz: 30,
+        milissegundos: 33
+    },
+    {
+        hertz: 60,
+        milissegundos: 16
+    },]);
+
+    const [frequencia, setFrequencia] = useState<any>();
+    const [usuario, setUsuario] = useState<any>();
+    const [atividade, setAtividade] = useState<any>();
+    const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
+    const [idColeta, setIdColeta] = useState<number>();
+
+    const [corIconeCardColeta, setCorIconeCardColeta] = useState<string>(Cores.cinza);
+    const [titleCardColeta, setTitleCardColeta] = useState<string>('Aguardando informações');
+
+
     useEffect(() => {
         BluetoothClientService.requestBluetoothPermission(() => {
             BluetoothClientService.disconnect().then(() => {
@@ -30,6 +60,23 @@ export default function StartCollectionScreen() {
             })
         });
     }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            setUsuario(null);
+            setAtividade(null);
+            getUsuarios().then((res) => {
+                setListaDeUsuarios(res);
+            });
+            getAtividades().then((res) => {
+                setListaDeAtividades(res);
+            });
+
+            return () => {
+                BluetoothClientService.disconnect();
+            };
+        }, [])
+    );
 
     const stringCanBeConvertedToJSON = (msg: string) => {
         try {
@@ -45,76 +92,30 @@ export default function StartCollectionScreen() {
         try {
             setTentandoConectar(true);
             await BluetoothClientService.connectToDevice(device.address, async (msg) => {
+                if (msg === "coletaIniciada") {
+                    setTitleCardColeta("Em andamento");
+                    setCorIconeCardColeta(Cores.verde);
+                }
                 if (stringCanBeConvertedToJSON(msg)) {
+                    setBloqueado(false);
                     const convertedJSON = JSON.parse(msg);
                     await finalizarColeta(convertedJSON.idColeta, Date.now().toString(), true, convertedJSON.qtdDadosColetados);
                 }
             },
                 () => {
+                    setBloqueado(true);
                     setTentandoConectar(false);
                     setModalBluetoothVisible(false);
                 },
                 () => {
                     setTentandoConectar(false);
+                    setBloqueado(false);
                 });
         }
         catch {
             Alert.alert(`Conexão falhou`, `Erro desconhecido ao tentar se conectar com o dispositivo: \n${device.name}`)
         }
     };
-
-    useFocusEffect(
-        useCallback(() => {
-
-            setUsuario(null);
-            setAtividade(null);
-            setFrequencia(null);
-            getUsuarios().then((res) => {
-                setListaDeUsuarios(res);
-
-            });
-            getAtividades().then((res) => {
-
-                setListaDeAtividades(res);
-            });
-
-            return () => {
-                BluetoothClientService.disconnect();
-            };
-        }, [])
-    );
-
-    
-    const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
-    const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
-    const loading = !listaDeAtividades || !listaDeUsuarios; 
-    const listaDeFrequencias = [
-        {
-            hertz: 10,
-            milissegundos: 100
-        },
-        {
-            hertz: 15,
-            milissegundos: 66
-        },
-        {
-            hertz: 30,
-            milissegundos: 33
-        },
-        {
-            hertz: 60,
-            milissegundos: 16
-        },
-    ];
-
-    const [frequencia, setFrequencia] = useState<any>();
-    const [usuario, setUsuario] = useState<any>();
-    const [atividade, setAtividade] = useState<any>();
-    const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
-    const [idColeta, setIdColeta] = useState<number>();
-
-    const [corIconeCardColeta, setCorIconeCardColeta] = useState<string>(Cores.cinza);
-    const [titleCardColeta, setTitleCardColeta] = useState<string>('Aguardando informações');
 
     function sanitizeName(name: string) {
         return name
@@ -124,7 +125,7 @@ export default function StartCollectionScreen() {
     }
 
     const iniciarColeta = async () => {
-        if (!usuario || !atividade)
+        if (!usuario || !atividade || !frequencia)
             return;
 
         setBloqueado(true);
@@ -152,14 +153,11 @@ export default function StartCollectionScreen() {
 
         setBloqueado(false);
         setColetaEmAndamento(false);
-        setCorIconeCardColeta('gray');
-        setTitleCardColeta('Aguardando informações');
+        setCorIconeCardColeta(Cores.laranja);
+        setTitleCardColeta('Coleta finalizada');
         let mensagem = {
             idColeta: idColeta,
-            pararColeta: true,
-            nomeUsuario: sanitizeName(usuario.nome),
-            nomeAtividade: sanitizeName(atividade.nome),
-            frequenciaHertz: frequencia.hertz
+            pararColeta: true
         };
         const jsonString = JSON.stringify(mensagem);
         BluetoothClientService.sendMessage(jsonString + '\n');
@@ -175,10 +173,7 @@ export default function StartCollectionScreen() {
     }
 
     return (
-        <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={"height"}
-        >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={"height"}>
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <ScrollView contentContainerStyle={{ flexGrow: 1 }}
                     keyboardShouldPersistTaps="handled">

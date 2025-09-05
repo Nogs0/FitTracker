@@ -1,5 +1,5 @@
 import { Feather, Ionicons } from '@expo/vector-icons';
-import { SafeAreaView, StyleSheet, View, Text, FlatList, TouchableOpacity } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Text, FlatList, TouchableOpacity, ActivityIndicator } from 'react-native';
 import stylesGlobal from '../../../styles/global';
 import { useCallback, useState } from 'react';
 import { deleteColeta, getColetas } from '@/data/database';
@@ -9,6 +9,7 @@ import Cores from '@/styles/cores';
 
 export default function CollectionScreen() {
   const [listColetas, setListColetas] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
 
   useFocusEffect(
     useCallback(() => {
@@ -17,8 +18,10 @@ export default function CollectionScreen() {
   );
 
   const carregarColetas = async () => {
-    const coletas = await getColetas();
-    setListColetas(coletas);
+    getColetas().then((coletas) => {
+      setListColetas(coletas);
+      setLoading(false);
+    });
   }
 
   const [modalDeleteColetaVisible, setModalDeleteColetaVisible] = useState(false);
@@ -70,6 +73,15 @@ export default function CollectionScreen() {
             <Text style={stylesCollections.labelCardRelatorio}>Segundos</Text>
           </View>
         </View>
+      </View>
+    );
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color={Cores.ciano} />
+        <Text>Carregando dados...</Text>
       </View>
     );
   }

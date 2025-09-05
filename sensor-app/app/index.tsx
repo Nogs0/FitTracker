@@ -1,18 +1,16 @@
-import { SafeAreaView, StyleSheet, View, Text, TouchableOpacity, Alert } from 'react-native';
+import { SafeAreaView, StyleSheet, View, Text, TouchableOpacity, Alert, FlatList, ActivityIndicator } from 'react-native';
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import RNFS from 'react-native-fs';
+import RNFS, { FileProtectionKeys } from 'react-native-fs';
 import * as Sharing from 'expo-sharing';
 import Cores from '@/styles/cores';
 import BluetoothServerService from '@/services/BluetoothServerService';
 import SensorLoggerService from "@/services/SensoresService";
+import AsyncStorageService from "@/services/AsyncStorageService";
+import ModalDelete from '@/components/ModalDelete';
 
 export default function Index() {
 
-  useEffect(() => {
-    SensorLoggerService.requestStoragePermission()
-  }, [])
-  let dadosParaColeta: any = {};
   const [dadosIniciaisParaColeta, setDadosIniciaisParaColeta] = useState<any>();
   const [servidorLigado, setServidorLigado] = useState(false);
   const [coletaFinalizada, setColetaFinalizada] = useState(false);
@@ -21,8 +19,20 @@ export default function Index() {
   const [corStatusColeta, setCorStatusColeta] = useState<string>(Cores.cinza);
   const [textoColeta, setTextoColeta] = useState<string>('Servidor Desligado');
   const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
+  const [arquivosGerados, setArquivosGerados] = useState<string[]>([]);
+  const [modalDeleteColetaVisible, setModalDeleteColetaVisible] = useState<boolean>(false);
+  const [fileToDelete, setFileToDelete] = useState<string>("");
+  const [loading, setLoading] = useState<boolean>(true);
 
-  const fileUri = RNFS.DownloadDirectoryPath + "/";
+  useEffect(() => {
+    SensorLoggerService.requestStoragePermission();
+    (async () => {
+      const arquivos = await AsyncStorageService.carregarArquivos();
+      setArquivosGerados(arquivos);
+      setLoading(false);
+    })();
+  }, [])
+
   const stringCanBeConvertedToJSON = (msg: string) => {
     try {
       JSON.parse(msg);
@@ -66,15 +76,15 @@ export default function Index() {
               setTextoBotaoBluetooth("Iniciar Bluetooth");
               setCorBotaoBluetooth(Cores.azul);
             })
-            SensorLoggerService.stopLogging(dadosParaColeta.nomeUsuario, dadosParaColeta.nomeAtividade, dadosParaColeta.frequenciaHertz, () => {
+            SensorLoggerService.stopLogging(() => {
               if (coletaEmAndamento)
-                Alert.alert("O arquivo gerado pela coleta em andamento estará na pasta de 'Downloads' do dispositiivo.")
+                Alert.alert("O arquivo gerado pela coleta em andamento estará na pasta de 'Downloads' do dispositivo.")
             });
           }
           if (stringCanBeConvertedToJSON(msg)) {
             let convertedJSON = JSON.parse(msg);
-            dadosParaColeta = convertedJSON;
             if (convertedJSON.iniciarColeta) {
+              BluetoothServerService.sendMessage("coletaIniciada");
               setDadosIniciaisParaColeta(convertedJSON);
               SensorLoggerService.startLogging(convertedJSON, () => {
                 setColetaEmAndamento(true);
@@ -84,7 +94,7 @@ export default function Index() {
               });
             }
             if (convertedJSON.pararColeta) {
-              SensorLoggerService.stopLogging(convertedJSON.nomeUsuario, convertedJSON.nomeAtividade, convertedJSON.frequenciaHertz, (qtdRegistros) => {
+              SensorLoggerService.stopLogging(async (qtdRegistros, fileName) => {
                 setColetaFinalizada(true);
                 setColetaEmAndamento(false);
                 setTextoColeta("Coleta finalizada");
@@ -95,6 +105,10 @@ export default function Index() {
                   qtdDadosColetados: qtdRegistros
                 }
                 BluetoothServerService.sendMessage(JSON.stringify(jsonEncerrarColeta));
+                const novosArquivos = [...arquivosGerados];
+                novosArquivos.push(fileName);
+                await AsyncStorageService.salvarArquivos(novosArquivos);
+                setArquivosGerados(arquivosGerados => [...arquivosGerados, fileName]);
               });
             }
           }
@@ -102,7 +116,7 @@ export default function Index() {
     }
   }
 
-  const compartilharColeta = async () => {
+  const compartilharColeta = async (fileName: string) => {
     const isSharingAvailable = await Sharing.isAvailableAsync();
     if (!isSharingAvailable) {
       Alert.alert('Erro', 'O compartilhamento não está disponível neste dispositivo.');
@@ -110,7 +124,7 @@ export default function Index() {
     }
 
     try {
-      await Sharing.shareAsync("file://" + fileUri + dadosIniciaisParaColeta.nomeUsuario + dadosIniciaisParaColeta.nomeAtividade + dadosIniciaisParaColeta.frequenciaHertz + 'Hz.csv', {
+      await Sharing.shareAsync("file://" + fileName, {
         mimeType: 'text/csv',
         dialogTitle: 'Compartilhar a coleta',
       });
@@ -120,12 +134,47 @@ export default function Index() {
     }
   }
 
+  const handleExcluirColeta = (item: string) => {
+    setModalDeleteColetaVisible(true);
+    setFileToDelete(item);
+  }
+
+  const excluirColeta = async (fileName: string) => {
+    const novosArquivos = [...arquivosGerados];
+    let index = novosArquivos.findIndex(x => x === fileName);
+    novosArquivos.splice(index, 1);
+    await AsyncStorageService.salvarArquivos(novosArquivos);
+
+    setArquivosGerados((prev) => {
+      let index = prev.findIndex(x => x === fileName);
+      prev.splice(index, 1);
+      return [...prev];
+    });
+
+    setModalDeleteColetaVisible(false);
+    setFileToDelete("");
+  }
+
+  if (loading) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <ActivityIndicator size="large" color={Cores.ciano} />
+        <Text>Carregando dados...</Text>
+      </View>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.mainContainer}>
+      <ModalDelete
+        visible={modalDeleteColetaVisible}
+        setVisible={setModalDeleteColetaVisible}
+        handleDelete={() => excluirColeta(fileToDelete)}
+      />
       <View style={styles.pageTitleContainer}>
         <Text style={styles.pageTitle}>Coletor de Dados</Text>
       </View>
-      <View style={[styles.card, { justifyContent: 'center', flex: 0.1 }]}>
+      <View style={[styles.card, { justifyContent: 'center', height: 80 }]}>
         <View style={styles.statusColetaContainer}>
           <FontAwesome name='circle' size={20} color={corStatusColeta} />
           <Text style={styles.titleColetaText}>{textoColeta}</Text>
@@ -144,28 +193,44 @@ export default function Index() {
           </View>
         </View>
         : <></>}
-      {coletaFinalizada ?
-        <View style={styles.card}>
-          <View style={styles.titleContainer}>
-            <Feather name='file' size={25} color={Cores.laranja} />
-            <View style={{ flexDirection: 'row', justifyContent: 'space-between', flex: 1 }}>
-              <Text style={styles.titleText}>Arquivo coleta</Text>
-            </View>
-          </View>
-          <View style={{ margin: 10 }}>
-            <View style={styles.card}>
-              <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                <Text>{dadosIniciaisParaColeta.nomeUsuario + dadosIniciaisParaColeta.nomeAtividade + dadosIniciaisParaColeta.frequenciaHertz + 'Hz.csv'}</Text>
-                <View style={{ flexDirection: 'row', gap: 10 }}>
-                  <TouchableOpacity onPress={compartilharColeta}>
-                    <Feather name='share' size={20}></Feather>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
+      <View style={styles.card}>
+        <View style={styles.titleContainer}>
+          <Feather name='file' size={25} color={Cores.laranja} />
+          <View style={{ flexDirection: 'row', justifyContent: 'space-between', flex: 1 }}>
+            <Text style={styles.titleText}>Arquivos das coletas</Text>
           </View>
         </View>
-        : <></>}
+        <View style={{ margin: 10 }}>
+          <FlatList
+            data={arquivosGerados}
+            style={{ height: 300 }}
+            keyExtractor={(item, index) => index.toString()}
+            contentContainerStyle={{ padding: 5, gap: 10 }}
+            renderItem={({ item }) => {
+              return (
+                <View style={styles.card}>
+                  <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 12, flex: 0.8 }}>{item.split(`/`).pop()}</Text>
+                    <View style={{ flexDirection: 'row', gap: 10, flex: 0.15 }}>
+                      <TouchableOpacity onPress={() => handleExcluirColeta(item)}>
+                        <Feather name='trash' size={15}></Feather>
+                      </TouchableOpacity>
+                      <TouchableOpacity onPress={() => compartilharColeta(item)}>
+                        <Feather name='share' size={15}></Feather>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                </View>
+              )
+            }}
+            ListEmptyComponent={() => (
+              <Text style={{ textAlign: 'center', marginTop: 20, fontSize: 16, color: 'gray' }}>
+                Nenhum arquivo encontrado
+              </Text>
+            )}
+          />
+        </View>
+      </View>
     </SafeAreaView >
   );
 }
@@ -191,7 +256,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start'
   },
   pageTitleContainer: {
-    flex: 0.2,
+    height: 50,
     justifyContent: 'center',
     alignItems: 'center'
   },

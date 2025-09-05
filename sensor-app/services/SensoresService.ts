@@ -1,9 +1,7 @@
 import { Accelerometer, Gyroscope, Magnetometer, Barometer } from "expo-sensors";
 import RNFS from "react-native-fs";
 import { JsonBluetooth } from "./BluetoothServerService";
-import { Alert, PermissionsAndroid } from "react-native";
-import DocumentPicker from "react-native-document-picker";
-
+import { PermissionsAndroid } from "react-native";
 class SensorLoggerService {
   private fileUri = "";
   private subscriptions: any[] = [];
@@ -41,11 +39,32 @@ class SensorLoggerService {
         }
       );
 
-      if (grantedWrite !== PermissionsAndroid.RESULTS.GRANTED || grantedRead !== PermissionsAndroid.RESULTS.GRANTED) {
-        throw new Error("Permissão é obrigatória!");
+      const grantedSensor = await PermissionsAndroid.request(
+        PermissionsAndroid.PERMISSIONS.BODY_SENSORS,
+        {
+          title: "Permissão de Utilização de Sensores",
+          message: "O app precisa utilizar sensores específicos para o pleno funcionamento.",
+          buttonNeutral: "Perguntar depois",
+          buttonNegative: "Cancelar",
+          buttonPositive: "OK",
+        }
+      );
+
+      if (grantedWrite !== PermissionsAndroid.RESULTS.GRANTED) {
+        throw new Error("Permissão para escrita é obrigatória!");
       }
 
-      return grantedWrite === PermissionsAndroid.RESULTS.GRANTED && grantedRead === PermissionsAndroid.RESULTS.GRANTED;
+      if (grantedRead !== PermissionsAndroid.RESULTS.GRANTED) {
+        throw new Error("Permissão para leitura é obrigatória!");
+      }
+
+      if (grantedSensor !== PermissionsAndroid.RESULTS.GRANTED) {
+        throw new Error("Permissão para sensores é obrigatória!");
+      }
+
+      return grantedWrite === PermissionsAndroid.RESULTS.GRANTED &&
+        grantedRead === PermissionsAndroid.RESULTS.GRANTED &&
+        grantedSensor === PermissionsAndroid.RESULTS.GRANTED;
     } catch (err) {
       console.warn(err);
       return false;
@@ -53,17 +72,10 @@ class SensorLoggerService {
   }
 
   public async startLogging(dados: JsonBluetooth, onStart?: () => void) {
-    const pasta = await DocumentPicker.pickDirectory();
-
-    if (!pasta) {
-      Alert.alert("Cancelado", "Você não escolheu um diretório.");
-      return;
-    }
-    this.fileUri = pasta.uri + '/';
-    const fileName = this.fileUri + dados.nomeUsuario + dados.nomeAtividade + dados.frequenciaHertz + "Hz.csv";
+    this.fileUri = RNFS.DocumentDirectoryPath + "/" + Date.now().toString() + dados.nomeUsuario + dados.frequenciaHertz + "Hz.csv";
 
     await RNFS.writeFile(
-      fileName,
+      this.fileUri,
       "timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n",
       "utf8"
     ).catch(err => console.log("Erro ao criar CSV:", err));
@@ -106,7 +118,7 @@ class SensorLoggerService {
       if (this.buffer.length >= 100) {
         const dataToWrite = this.buffer.join("");
         this.buffer = [];
-        await RNFS.appendFile(fileName, dataToWrite, "utf8")
+        await RNFS.appendFile(this.fileUri, dataToWrite, "utf8")
           .catch(err => console.log("Erro ao escrever CSV:", err));
       }
     }, 100);
@@ -114,7 +126,7 @@ class SensorLoggerService {
     onStart?.();
   }
 
-  public async stopLogging(nomeUsuario: string, nomeAtividade: string, frequenciaHertz: number, onStop?: (qtdRegistros: number) => void) {
+  public async stopLogging(onStop?: (qtdRegistros: number, fileUri: string) => void) {
     this.intervalRef && clearInterval(this.intervalRef);
 
     // Cancela listeners
@@ -126,11 +138,14 @@ class SensorLoggerService {
     if (this.buffer.length > 0) {
       const dataToWrite = this.buffer.join("");
       this.buffer = [];
-      await RNFS.appendFile(this.fileUri + nomeUsuario + nomeAtividade + frequenciaHertz + "Hz.csv", dataToWrite, "utf8")
+      await RNFS.appendFile(this.fileUri, dataToWrite, "utf8")
         .catch(err => console.log("Erro ao finalizar CSV:", err));
     }
-
-    onStop?.(this.contadorDeRegistros);
+    const fileName = this.fileUri;
+    const contadorDeRegistros = this.contadorDeRegistros;
+    onStop?.(contadorDeRegistros, fileName);
+    this.fileUri = "";
+    this.contadorDeRegistros = -1;
   }
 }
 

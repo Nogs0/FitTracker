@@ -7,7 +7,8 @@ const Cores = {
     ciano: "#52a6ac",
     verdeClaro: "#c8ffd6",
     azulClaro: "#e7f7ff",
-    vermelhoClaro: "#ffe7e7"
+    vermelhoClaro: "#ffe7e7",
+    laranja: "#ffb900",
 }
 
 export default Cores;
