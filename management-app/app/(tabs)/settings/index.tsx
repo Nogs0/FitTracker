@@ -6,6 +6,7 @@ import stylesGlobal from '@/styles/global';
 import { useRouter } from 'expo-router';
 import { insertUsuario, getUsuarios, deleteUsuario, insertAtividade, getAtividades, deleteAtividade } from '@/data/database';
 import ModalDelete from '@/components/ModalDelete';
+import Cores from '@/styles/cores';
 
 export default function SettingsScreen() {
   const router = useRouter();
@@ -82,7 +83,7 @@ export default function SettingsScreen() {
           <Text>{item.idade} anos</Text>
         </View>
         <TouchableOpacity onPress={() => excluirUsuario(item.id)} style={{ padding: 5 }}>
-          <Feather name='trash' color='gray' size={20} />
+          <Feather name='trash' color={Cores.cinza} size={20} />
         </TouchableOpacity>
       </View>
     );
@@ -116,7 +117,7 @@ export default function SettingsScreen() {
       <View key={item.id} style={stylesGlobal.cardList}>
         <Text style={{ width: '80%' }}>{item.nome}</Text>
         <TouchableOpacity onPress={() => excluirAtividade(item.id)} style={{ padding: 5 }}>
-          <Feather name='trash' color='gray' size={20}></Feather>
+          <Feather name='trash' color={Cores.cinza} size={20}></Feather>
         </TouchableOpacity>
       </View>
     )
@@ -137,7 +138,7 @@ export default function SettingsScreen() {
             </View>
             <View style={stylesGlobal.card}>
               <View style={stylesGlobal.titleContainer}>
-                <Feather name='users' size={25} color="rgb(78, 136, 237)" />
+                <Feather name='users' size={25} color={Cores.azul} />
                 <Text style={stylesGlobal.titleText}>Cadastro de usuários</Text>
               </View>
               <Text style={stylesGlobal.subtitleText}>Adicione usuários a serem monitorados</Text>
@@ -162,14 +163,14 @@ export default function SettingsScreen() {
               ]}
                 onPress={addUsuario}
                 disabled={!nomeUsuario || !idadeUsuario}>
-                <Feather name='plus' size={25} color='white' />
+                <Feather name='plus' size={25} color={Cores.branco} />
                 <Text style={stylesGlobal.buttonLabel}>Adicionar usuário</Text>
               </TouchableOpacity>
               <View style={stylesGlobal.containerList}>
                 {listaDeUsuarios.length > 0 ?
                   <TouchableOpacity style={stylesSettings.buttonCollapseList} onPress={toggleExpandedUsuarios}>
                     <Text style={stylesGlobal.labelList}>Usuários cadastrados ({listaDeUsuarios.length})</Text>
-                    <Feather name={collapsedUsuarios ? 'chevron-down' : 'chevron-up'} color={'gray'} size={20}></Feather>
+                    <Feather name={collapsedUsuarios ? 'chevron-down' : 'chevron-up'} color={Cores.cinza} size={20}></Feather>
                   </TouchableOpacity>
                   : <></>}
                 <Collapsible collapsed={collapsedUsuarios}>
@@ -179,7 +180,7 @@ export default function SettingsScreen() {
             </View>
             <View style={stylesGlobal.card}>
               <View style={stylesGlobal.titleContainer}>
-                <Feather name='activity' size={25} color="rgba(82,172,99,1)" />
+                <Feather name='activity' size={25} color={Cores.verde} />
                 <Text style={stylesGlobal.titleText}>Cadastro de atividades</Text>
               </View>
               <Text style={stylesGlobal.subtitleText}>Adicione as atividades disponíveis</Text>
@@ -197,14 +198,14 @@ export default function SettingsScreen() {
               ]}
                 onPress={addAtividade}
                 disabled={!nomeAtividade}>
-                <Feather name='plus' size={25} color='white' />
+                <Feather name='plus' size={25} color={Cores.branco} />
                 <Text style={stylesGlobal.buttonLabel}>Adicionar atividade</Text>
               </TouchableOpacity>
               <View style={stylesGlobal.containerList}>
                 {listaDeAtividades.length > 0 ?
                   <TouchableOpacity style={stylesSettings.buttonCollapseList} onPress={toggleExpandedAtividades}>
                     <Text style={stylesGlobal.labelList}>Atividades cadastradas ({listaDeAtividades.length})</Text>
-                    <Feather name={collapsedAtividades ? 'chevron-down' : 'chevron-up'} color={'gray'} size={20}></Feather>
+                    <Feather name={collapsedAtividades ? 'chevron-down' : 'chevron-up'} color={Cores.cinza} size={20}></Feather>
                   </TouchableOpacity>
                   : <></>}
                 <Collapsible collapsed={collapsedAtividades}>
@@ -214,11 +215,11 @@ export default function SettingsScreen() {
             </View>
             <TouchableOpacity
               style={[stylesSettings.buttonStartDataCollection,
-              (listaDeAtividades.length === 0 || listaDeUsuarios.length === 0 ? stylesGlobal.buttonDisabled : {})]}
+              (listaDeAtividades.length === 0 || listaDeUsuarios.length === 0 ? stylesGlobal.buttonDisabled : { opacity: 1})]}
               disabled={listaDeAtividades.length === 0 || listaDeUsuarios.length === 0}
               onPress={() => router.push('/settings/startCollection')}>
               <Text style={[stylesGlobal.buttonLabel, stylesSettings.buttonLabelStartDataCollection,]}>Iniciar coleta de dados</Text>
-              <Feather name='arrow-right' size={30} color='white' />
+              <Feather name='arrow-right' size={30} color={Cores.branco} />
             </TouchableOpacity>
           </SafeAreaView>
         </ScrollView>
@@ -240,29 +241,18 @@ const stylesSettings = StyleSheet.create({
     fontSize: 20
   },
   buttonAddUser: {
-    backgroundColor: 'rgb(78, 136, 237)'
+    backgroundColor: Cores.azul
   },
   buttonAddActivity: {
-    backgroundColor: 'rgba(82,172,99,1)'
+    backgroundColor: Cores.verde
   },
   buttonStartDataCollection: {
     flexDirection: 'row',
     padding: 10,
-    color: 'white',
     alignItems: 'center',
     justifyContent: 'space-evenly',
     borderRadius: 5,
-    backgroundColor: 'rgba(82,166,172,1)'
-  },
-  buttonStartDataCollectionDisabled: {
-    opacity: 0.5,
-    flexDirection: 'row',
-    padding: 10,
-    color: 'white',
-    alignItems: 'center',
-    justifyContent: 'space-evenly',
-    borderRadius: 5,
-    backgroundColor: 'rgba(82,166,172,1)'
+    backgroundColor: Cores.ciano
   },
   buttonCollapseList: {
     flexDirection: 'row',

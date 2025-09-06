@@ -10,7 +10,7 @@ class BluetoothClientService {
   private connectedDevice: BluetoothDevice | null = null;
   private dataListener: BluetoothEventSubscription | null = null;
 
-  public async requestBluetoothPermission() {
+  public async requestBluetoothPermission(onAccept?: () => void, onReject?: () => void) {
     if (Platform.OS !== 'android') {
       return true; // Se não for Android, não faz nada
     }
@@ -27,9 +27,11 @@ class BluetoothClientService {
         const isConnectGranted = permissions['android.permission.BLUETOOTH_CONNECT'] === PermissionsAndroid.RESULTS.GRANTED;
 
         if (isScanGranted && isConnectGranted) {
+          onAccept?.();
           console.log('Permissões de Bluetooth para Android 12+ concedidas.');
           return true;
         } else {
+          onReject?.();
           console.log('Uma ou mais permissões de Bluetooth para Android 12+ foram negadas.');
           return false;
         }
@@ -54,9 +56,11 @@ class BluetoothClientService {
         );
 
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
+          onAccept?.();
           console.log('Permissão de Localização (para Bluetooth) concedida.');
           return true;
         } else {
+          onReject?.();
           console.log('Permissão de Localização (para Bluetooth) negada.');
           return false;
         }
@@ -83,12 +87,14 @@ class BluetoothClientService {
    */
   public async connectToDevice(
     address: string,
-    onMessage?: ListenerCallback
+    onMessage?: ListenerCallback,
+    onConnect?: () => void,
+    onError?: () => void
   ): Promise<BluetoothDevice> {
     try {
       const device = await RNBluetoothClassic.connectToDevice(address);
       this.connectedDevice = device;
-
+      onConnect?.();
       console.log("Conectado a:", device.name, device.address);
 
       // Listener de mensagens
@@ -99,6 +105,7 @@ class BluetoothClientService {
 
       return device;
     } catch (err) {
+      onError?.();
       throw err;
     }
   }
@@ -116,8 +123,9 @@ class BluetoothClientService {
   /**
    * Desconecta e remove listeners
    */
-  public async disconnect(): Promise<void> {
+  public async disconnect(onDisconnect?: () => void): Promise<void> {
     if (this.dataListener) {
+      this.sendMessage("encerrarConexao");
       this.dataListener.remove();
       this.dataListener = null;
     }
@@ -125,6 +133,7 @@ class BluetoothClientService {
     if (this.connectedDevice) {
       try {
         await this.connectedDevice.disconnect();
+        onDisconnect?.();
         console.log("Desconectado do servidor.");
       } catch {
         

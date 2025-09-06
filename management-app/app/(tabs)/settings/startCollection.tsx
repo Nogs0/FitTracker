@@ -1,4 +1,4 @@
-import { Keyboard, KeyboardAvoidingView, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, PermissionsAndroid, Alert, Platform } from "react-native";
+import { Keyboard, KeyboardAvoidingView, SafeAreaView, ScrollView, TouchableWithoutFeedback, Text, TouchableOpacity, View, StyleSheet, Alert, ActivityIndicator } from "react-native";
 import stylesGlobal from '@/styles/global';
 import { Feather, FontAwesome } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
@@ -8,6 +8,7 @@ import { finalizarColeta, getAtividades, getUsuarios, insertColeta } from "@/dat
 import { useNavigationBlock } from '@/contexts/NavigationBlockContext';
 import BluetoothClientService from "@/services/BluetoothClientService";
 import ModalSelectDeviceBluetooh from "@/components/ModalSelectDeviceBluetooh";
+import Cores from "@/styles/cores";
 
 export default function StartCollectionScreen() {
 
@@ -16,100 +17,131 @@ export default function StartCollectionScreen() {
 
     const [modalBluetoohVisible, setModalBluetoothVisible] = useState(true);
     const [bluetoothDevices, setBluetoothDevices] = useState<any[]>([]);
-    const [connected, setConnected] = useState(false);
-    const [messages, setMessages] = useState<string[]>([]);
+    const [tentandoConectar, setTentandoConectar] = useState<boolean>(false);
+
+    const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
+    const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
+    const loading = !listaDeAtividades || !listaDeUsuarios;
+    const [listaDeFrequencias] = useState<any[]>([{
+        hertz: 10,
+        milissegundos: 100
+    },
+    {
+        hertz: 15,
+        milissegundos: 66
+    },
+    {
+        hertz: 30,
+        milissegundos: 33
+    },
+    {
+        hertz: 60,
+        milissegundos: 16
+    },]);
+
+    const [frequencia, setFrequencia] = useState<any>();
+    const [usuario, setUsuario] = useState<any>();
+    const [atividade, setAtividade] = useState<any>();
+    const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
+    const [idColeta, setIdColeta] = useState<number>();
+
+    const [corIconeCardColeta, setCorIconeCardColeta] = useState<string>(Cores.cinza);
+    const [titleCardColeta, setTitleCardColeta] = useState<string>('Aguardando informações');
+
 
     useEffect(() => {
-        BluetoothClientService.requestBluetoothPermission()
-            .then(() => {
-                BluetoothClientService.disconnect().then(() => {
-                    const loadDevices = async () => {
-                        const bonded = await BluetoothClientService.getBondedDevices();
-                        setBluetoothDevices(bonded);
-                    };
-                    loadDevices();
-                })
-            });
+        BluetoothClientService.requestBluetoothPermission(() => {
+            BluetoothClientService.disconnect().then(() => {
+                const loadDevices = async () => {
+                    const bonded = await BluetoothClientService.getBondedDevices();
+                    setBluetoothDevices(bonded);
+                };
+                loadDevices();
+            })
+        });
     }, []);
+
+    useFocusEffect(
+        useCallback(() => {
+            setUsuario(null);
+            setAtividade(null);
+            getUsuarios().then((res) => {
+                setListaDeUsuarios(res);
+            });
+            getAtividades().then((res) => {
+                setListaDeAtividades(res);
+            });
+
+            return () => {
+                BluetoothClientService.disconnect();
+            };
+        }, [])
+    );
+
+    const stringCanBeConvertedToJSON = (msg: string) => {
+        try {
+            JSON.parse(msg);
+            return true;
+        }
+        catch {
+            return false;
+        }
+    }
 
     const connect = async (device: any) => {
         try {
-
-            await BluetoothClientService.connectToDevice(device.address, (msg) => {
-                setMessages((prev) => [...prev, msg]);
-            });
-            setConnected(true);
-            setModalBluetoothVisible(false);
+            setTentandoConectar(true);
+            await BluetoothClientService.connectToDevice(device.address, async (msg) => {
+                if (msg === "coletaIniciada") {
+                    setTitleCardColeta("Em andamento");
+                    setCorIconeCardColeta(Cores.verde);
+                }
+                if (stringCanBeConvertedToJSON(msg)) {
+                    setBloqueado(false);
+                    const convertedJSON = JSON.parse(msg);
+                    await finalizarColeta(convertedJSON.idColeta, Date.now().toString(), true, convertedJSON.qtdDadosColetados);
+                }
+            },
+                () => {
+                    setBloqueado(true);
+                    setTentandoConectar(false);
+                    setModalBluetoothVisible(false);
+                },
+                () => {
+                    setTentandoConectar(false);
+                    setBloqueado(false);
+                });
         }
         catch {
             Alert.alert(`Conexão falhou`, `Erro desconhecido ao tentar se conectar com o dispositivo: \n${device.name}`)
         }
     };
 
-    useFocusEffect(
-        useCallback(() => {
-            setUsuario(null);
-            setAtividade(null);
-            carregarUsuarios();
-            carregarAtividades();
-        }, [])
-    );
-
-    const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
-    const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
-    const listaDeFrequencias = [
-        {
-            hertz: 10,
-            milissegundos: 100
-        },
-        {
-            hertz: 15,
-            milissegundos: 66
-        },
-        {
-            hertz: 30,
-            milissegundos: 33
-        },
-        {
-            hertz: 60,
-            milissegundos: 16
-        },
-    ];
-
-    const [frequencia, setFrequencia] = useState<any>();
-    const [usuario, setUsuario] = useState<any>();
-    const [atividade, setAtividade] = useState<any>();
-    const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
-    const [idColeta, setIdColeta] = useState<number>(0);
-
-    const carregarUsuarios = async () => {
-        const usuarios = await getUsuarios();
-        setListaDeUsuarios(usuarios);
-    };
-
-    const carregarAtividades = async () => {
-        const atividades = await getAtividades();
-        setListaDeAtividades(atividades);
-    };
-
-    const [corIconeCardColeta, setCorIconeCardColeta] = useState<string>('gray');
-    const [titleCardColeta, setTitleCardColeta] = useState<string>('Aguardando informações');
+    function sanitizeName(name: string) {
+        return name
+            .normalize("NFD")                 // separa acentos
+            .replace(/[\u0300-\u036f]/g, "")  // remove acentos
+            .replace(/[^a-zA-Z0-9_-]/g, "");  // remove caracteres inválidos
+    }
 
     const iniciarColeta = async () => {
-        if (!usuario || !atividade)
+        if (!usuario || !atividade || !frequencia)
             return;
 
         setBloqueado(true);
         setColetaEmAndamento(true);
-        setCorIconeCardColeta('rgb(78, 136, 237)');
+        setCorIconeCardColeta(Cores.azul);
         setTitleCardColeta('Estabelecendo conexão');
         setIdColeta(await insertColeta(usuario?.nome, usuario?.idade, atividade.nome, Date.now().toString()));
+
         let mensagem = {
             iniciarColeta: true,
             pararColeta: false,
-            nomeUsuario: usuario.nome,
-            nomeAtividade: atividade.nome,
-            frequencia: frequencia
+            nomeUsuario: sanitizeName(usuario.nome),
+            nomeAtividade: sanitizeName(atividade.nome),
+            frequenciaMilissegundos: frequencia.milissegundos,
+            frequenciaHertz: frequencia.hertz,
+            idColeta: idColeta
         };
         const jsonString = JSON.stringify(mensagem);
         BluetoothClientService.sendMessage(jsonString + "\n")
@@ -121,28 +153,33 @@ export default function StartCollectionScreen() {
 
         setBloqueado(false);
         setColetaEmAndamento(false);
-        setCorIconeCardColeta('gray');
-        setTitleCardColeta('Aguardando informações');
-        await finalizarColeta(idColeta, Date.now().toString(), false, 0);
+        setCorIconeCardColeta(Cores.laranja);
+        setTitleCardColeta('Coleta finalizada');
         let mensagem = {
-            pararColeta: true,
-            nomeUsuario: usuario.nome,
-            nomeAtividade: atividade.nome,
+            idColeta: idColeta,
+            pararColeta: true
         };
         const jsonString = JSON.stringify(mensagem);
         BluetoothClientService.sendMessage(jsonString + '\n');
     }
 
+    if (loading) {
+        return (
+            <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+                <ActivityIndicator size="large" color={Cores.ciano} />
+                <Text>Carregando dados...</Text>
+            </View>
+        );
+    }
+
     return (
-        <KeyboardAvoidingView
-            style={{ flex: 1 }}
-            behavior={"height"}
-        >
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={"height"}>
             <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
                 <ScrollView contentContainerStyle={{ flexGrow: 1 }}
                     keyboardShouldPersistTaps="handled">
                     <SafeAreaView style={stylesGlobal.mainContainer}>
                         <ModalSelectDeviceBluetooh
+                            tentandoConectar={tentandoConectar}
                             handleConnect={connect}
                             devices={bluetoothDevices}
                             visible={modalBluetoohVisible}
@@ -161,10 +198,10 @@ export default function StartCollectionScreen() {
                         </View>
                         <View style={stylesGlobal.card}>
                             <View style={stylesGlobal.titleContainer}>
-                                <FontAwesome name='gears' size={25} color="rgb(52,184,55)" />
+                                <FontAwesome name='gears' size={25} color={Cores.verde} />
                                 <Text style={stylesGlobal.titleText}>Configuração da coleta</Text>
                             </View>
-                            <Text style={stylesGlobal.subtitleText}>Selecione o usuário e a atividade física</Text>
+                            <Text style={stylesGlobal.subtitleText}>Selecione usuário, atividade física e frequência</Text>
                             <View style={stylesGlobal.inputsContainer}>
                                 <View style={stylesGlobal.inputContainer}>
                                     <Text style={stylesGlobal.labelInput}>Usuário</Text>
@@ -214,7 +251,7 @@ export default function StartCollectionScreen() {
                                         {
                                             listaDeFrequencias.map((item, i) => {
                                                 return (
-                                                    <Picker.Item key={i} label={`${item.hertz}Hz`} value={item.milissegundos} />
+                                                    <Picker.Item key={i} label={`${item.hertz}Hz`} value={item} />
                                                 )
                                             })
                                         }
@@ -225,15 +262,15 @@ export default function StartCollectionScreen() {
                                 <TouchableOpacity style={[stylesStartCollection.buttonStartStopCollection, stylesStartCollection.buttonStopCollection]}
                                     onPress={pararColeta}>
                                     <Text style={[stylesGlobal.buttonLabel, stylesStartCollection.buttonLabelStartCollection]}>Parar coleta</Text>
-                                    <FontAwesome name='stop' size={30} color="white" />
+                                    <FontAwesome name='stop' size={30} color={Cores.branco} />
                                 </TouchableOpacity>
                                 :
                                 <TouchableOpacity style={[stylesStartCollection.buttonStartStopCollection, stylesStartCollection.buttonStartCollection,
-                                (!usuario || !atividade ? stylesGlobal.buttonDisabled : {})]}
+                                (!usuario || !atividade || !frequencia ? stylesGlobal.buttonDisabled : {})]}
                                     disabled={!usuario || !atividade}
                                     onPress={iniciarColeta}>
                                     <Text style={[stylesGlobal.buttonLabel, stylesStartCollection.buttonLabelStartCollection]}>Iniciar coleta</Text>
-                                    <FontAwesome name='play' size={30} color="white" />
+                                    <FontAwesome name='play' size={30} color={Cores.branco} />
                                 </TouchableOpacity>
                             }
                         </View>
@@ -257,23 +294,23 @@ const stylesStartCollection = StyleSheet.create({
     buttonStartStopCollection: {
         flexDirection: 'row',
         padding: 10,
-        color: 'white',
+        color: Cores.branco,
         alignItems: 'center',
         justifyContent: 'space-evenly',
         borderRadius: 5,
     },
     buttonStopCollection: {
-        backgroundColor: 'rgb(184, 52, 52)'
+        backgroundColor: Cores.vermelho
     },
     buttonStartCollection: {
-        backgroundColor: 'rgb(52,184,55)'
+        backgroundColor: Cores.verde
     },
     pickerStyle: {
         width: '100%'
     },
     buttonVoltar: {
         flexDirection: 'row',
-        backgroundColor: 'white',
+        backgroundColor: Cores.branco,
         alignItems: 'center',
         width: 'auto',
         padding: 5,
