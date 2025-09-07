@@ -4,7 +4,7 @@ import { Feather, FontAwesome } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { finalizarColeta, insertColeta, getAtividades, getUsuarios, getDB } from "@/data/database";
+import { finalizarColeta, insertColeta, getDB } from "@/data/database";
 import { useNavigationBlock } from '@/contexts/NavigationBlockContext';
 import BluetoothClientService from "@/services/BluetoothClientService";
 import ModalSelectDeviceBluetooh from "@/components/ModalSelectDeviceBluetooh";
@@ -111,7 +111,6 @@ export default function StartCollectionScreen() {
             await BluetoothClientService.connectToDevice(device.address,
                 // onMessage
                 async (msg) => {
-                    console.log(msg)
                     if (msg === "coletaIniciada") {
                         setEstabelecendoConexao(false);
                         setColetaEmAndamento(true);
@@ -119,8 +118,14 @@ export default function StartCollectionScreen() {
                         setCorIconeCardColeta(Cores.verde);
                     }
                     if (stringCanBeConvertedToJSON(msg)) {
-                        setBloqueado(false);
                         const convertedJSON = JSON.parse(msg);
+                        if (convertedJSON.finalizadoPeloServidor) {
+                            setColetaEmAndamento(false);
+                            setCorIconeCardColeta(Cores.laranja);
+                            setTitleCardColeta('Coleta finalizada');
+                        }
+                        console.log(convertedJSON)
+                        setBloqueado(false);
                         await finalizarColeta(convertedJSON.idColeta, Date.now().toString(), true, convertedJSON.qtdDadosColetados);
                     }
                     if (msg === "servidorDesligado") {
@@ -168,7 +173,8 @@ export default function StartCollectionScreen() {
         setBloqueado(true);
         setCorIconeCardColeta(Cores.azul);
         setTitleCardColeta('Estabelecendo conexão');
-        setIdColeta(await insertColeta(usuario?.nome, usuario?.idade, atividade.nome, Date.now().toString()));
+        let idColetaAtual = await insertColeta(usuario?.nome, usuario?.idade, atividade.nome, Date.now().toString())
+        setIdColeta(idColetaAtual);
 
         let mensagem = {
             iniciarColeta: true,
@@ -177,7 +183,7 @@ export default function StartCollectionScreen() {
             nomeAtividade: sanitizeName(atividade.nome),
             frequenciaMilissegundos: frequencia.milissegundos,
             frequenciaHertz: frequencia.hertz,
-            idColeta: idColeta
+            idColeta: idColetaAtual
         };
         const jsonString = JSON.stringify(mensagem);
         BluetoothClientService.sendMessage(jsonString + "\n")

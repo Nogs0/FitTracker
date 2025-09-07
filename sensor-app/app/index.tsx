@@ -95,7 +95,6 @@ export default function Index() {
               });
             }
             if (convertedJSON.pararColeta) {
-              console.log(coletaEmAndamento)
               SensorLoggerService.stopLogging(async (qtdRegistros, fileName) => {
                 setColetaFinalizada(true);
                 setColetaEmAndamento(false);
@@ -157,6 +156,28 @@ export default function Index() {
     setFileToDelete("");
   }
 
+  const pararColeta = async (idColeta: number) => {
+    console.log(dadosIniciaisParaColeta)
+    console.log(idColeta)
+    SensorLoggerService.stopLogging(async (qtdRegistros, fileName) => {
+      setColetaFinalizada(true);
+      setColetaEmAndamento(false);
+      setTextoColeta("Coleta finalizada");
+      setCorStatusColeta(Cores.laranja);
+      setCorBotaoBluetooth(Cores.vermelho);
+      const jsonEncerrarColeta = {
+        idColeta: idColeta,
+        qtdDadosColetados: qtdRegistros,
+        finalizadoPeloServidor: true
+      }
+      BluetoothServerService.sendMessage(JSON.stringify(jsonEncerrarColeta));
+      const novosArquivos = [...arquivosGerados];
+      novosArquivos.push(fileName);
+      await AsyncStorageService.salvarArquivos(novosArquivos);
+      setArquivosGerados(arquivosGerados => [...arquivosGerados, fileName]);
+    });
+  }
+
   if (loading) {
     return (
       <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
@@ -174,10 +195,10 @@ export default function Index() {
         handleDelete={() => excluirColeta(fileToDelete)}
       />
       <View style={styles.pageTitleContainer}>
-        <Text style={styles.pageTitle}>Coletor de Dados</Text>
+        <Text style={styles.pageTitle}>Coletor de dados</Text>
         <Text style={styles.subtitleText}>Aplicativo destinado ao monitoramento de sensores</Text>
       </View>
-      <View style={[styles.card, { justifyContent: 'space-evenly', gap: 20, height: '20%' }]}>
+      <View style={[styles.card, { justifyContent: 'space-evenly', gap: 20, padding: 10 }]}>
         <View style={styles.statusColetaContainer}>
           <FontAwesome name='circle' size={20} color={corStatusColeta} />
           <Text style={styles.titleColetaText}>{textoColeta}</Text>
@@ -187,13 +208,21 @@ export default function Index() {
           disabled={coletaEmAndamento}>
           <Text style={styles.textoBotaoBluetooth}>{textoBotaoBluetooth}</Text>
         </TouchableOpacity>
+        {
+          coletaEmAndamento ?
+            <TouchableOpacity style={[styles.botaoBluetooth, { backgroundColor: Cores.vermelho }]}
+              onPress={async () => await pararColeta(dadosIniciaisParaColeta.idColeta)}>
+              <Text style={styles.textoBotaoBluetooth}>Parar coleta</Text>
+            </TouchableOpacity>
+            : <></>
+        }
       </View>
-      <View style={[styles.card, { height: '70%' }]}>
+      <View style={[styles.card, { height: '65%' }]}>
         <View style={styles.titleContainer}>
           <Feather name='file' size={25} color={Cores.laranja} />
           <Text style={styles.titleText}>Arquivos das coletas</Text>
         </View>
-        <Text style={styles.subtitleText}>Coletas listadas prontas para o compartilhamento</Text>
+        <Text style={styles.subtitleText}>Coletas prontas para o compartilhamento</Text>
         <View style={{ marginTop: 20 }}>
           <FlatList
             data={arquivosGerados}
