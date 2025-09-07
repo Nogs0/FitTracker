@@ -99,7 +99,6 @@ class BluetoothClientService {
 
       // Listener de mensagens
       this.dataListener = device.onDataReceived((event) => {
-        console.log("Mensagem recebida:", event.data);
         if (onMessage) onMessage(event.data);
       });
 
