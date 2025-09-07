@@ -29,12 +29,13 @@ export default function CollectionScreen() {
 
   const handleDeleteColeta = async (id: number) => {
     setModalDeleteColetaVisible(false);
-    deleteColeta(id).then(() => {
-      getColetas().then((coletas) => {
-        setListColetas(coletas);
-      })
-    }
-    );
+    setListColetas((prev) => {
+      let indexToDelete = prev.findIndex(x => x.id === id);
+      prev.splice(indexToDelete, 1);
+      return prev;
+    });
+    console.log(id)
+    await deleteColeta(id);
   };
 
   const excluirColeta = (id: number) => {
@@ -49,30 +50,39 @@ export default function CollectionScreen() {
           <View style={{ width: '85%' }}>
             <Text style={stylesCollections.nameCard}>{item.nomeUsuario}</Text>
             <Text>{item.idadeUsuario} anos</Text>
+            <Text>{item.nomeAtividade}</Text>
           </View>
           <TouchableOpacity onPress={() => excluirColeta(item.id)} style={{ padding: 5 }}>
             <Feather name='trash' color={Cores.cinza} size={20}></Feather>
           </TouchableOpacity>
         </View>
-        <Text style={[stylesGlobal.subtitleText,
-        (item.conexaoEstabelecida ? { color: Cores.verde } : { color: Cores.vermelho })]}>
-          {item.conexaoEstabelecida ? 'Conexão estabelecida com sucesso' : 'Conexão não estabelecida'}</Text>
-        <View style={stylesCollections.containerDateTime}>
-          <View style={stylesCollections.containerTextDateTime}>
-            <Ionicons name='calendar-clear-outline' size={14}></Ionicons>
-            <Text>{(new Date(Number(item.horaInicio)).toLocaleDateString('pt-Br'))}</Text>
-          </View>
-        </View>
-        <View style={stylesCollections.containerCardsRelatorio}>
-          <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioRegistros]}>
-            <Text>{item.qtdDadosRecebidos ?? 0}</Text>
-            <Text style={stylesCollections.labelCardRelatorio}>Registros</Text>
-          </View>
-          <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioTempo]}>
-            <Text>{Math.floor((Number(item.horaFim) - Number(item.horaInicio)) / 1000)}s</Text>
-            <Text style={stylesCollections.labelCardRelatorio}>Segundos</Text>
-          </View>
-        </View>
+        {
+          item.conexaoEstabelecida ?
+            <>
+              <Text style={[stylesGlobal.subtitleText, { color: Cores.verde }]}>
+                Conexão estabelecida com sucesso
+              </Text>
+              <View style={stylesCollections.containerDateTime}>
+                <View style={stylesCollections.containerTextDateTime}>
+                  <Ionicons name='calendar-clear-outline' size={14}></Ionicons>
+                  <Text>{(new Date(Number(item.horaInicio)).toLocaleDateString('pt-Br'))}</Text>
+                </View>
+              </View>
+              <View style={stylesCollections.containerCardsRelatorio}>
+                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioRegistros]}>
+                  <Text>{item.qtdDadosRecebidos ?? 0}</Text>
+                  <Text style={stylesCollections.labelCardRelatorio}>Registros</Text>
+                </View>
+                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioTempo]}>
+                  <Text>{Math.floor((Number(item.horaFim) - Number(item.horaInicio)) / 1000)}s</Text>
+                  <Text style={stylesCollections.labelCardRelatorio}>Segundos</Text>
+                </View>
+              </View>
+            </>
+            : <Text style={[stylesGlobal.subtitleText, { color: Cores.vermelho }]}>
+              Conexão não estabelecida
+            </Text>
+        }
       </View>
     );
   }

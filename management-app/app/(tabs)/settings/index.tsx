@@ -1,7 +1,7 @@
 import Collapsible from 'react-native-collapsible';
 import { Feather } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, ScrollView, KeyboardAvoidingView, TouchableWithoutFeedback, Keyboard, ToastAndroid, Alert } from 'react-native';
 import stylesGlobal from '@/styles/global';
 import { useRouter } from 'expo-router';
 import { insertUsuario, getUsuarios, deleteUsuario, insertAtividade, getAtividades, deleteAtividade } from '@/data/database';
@@ -123,6 +123,15 @@ export default function SettingsScreen() {
     )
   }
 
+  const navegarParaIniciarColeta = () => {
+    if (listaDeAtividades.length === 0 || listaDeUsuarios.length === 0)
+    {
+      Alert.alert("Atenção", "Você deve criar ao menos um usuário e uma atividade");
+      return;
+    }
+    router.push('/settings/startCollection');
+  }
+
   return (
     <KeyboardAvoidingView
       style={{ flex: 1 }}
@@ -214,10 +223,8 @@ export default function SettingsScreen() {
               </View>
             </View>
             <TouchableOpacity
-              style={[stylesSettings.buttonStartDataCollection,
-              (listaDeAtividades.length === 0 || listaDeUsuarios.length === 0 ? stylesGlobal.buttonDisabled : { opacity: 1})]}
-              disabled={listaDeAtividades.length === 0 || listaDeUsuarios.length === 0}
-              onPress={() => router.push('/settings/startCollection')}>
+              style={stylesSettings.buttonStartDataCollection}
+              onPress={navegarParaIniciarColeta}>
               <Text style={[stylesGlobal.buttonLabel, stylesSettings.buttonLabelStartDataCollection,]}>Iniciar coleta de dados</Text>
               <Feather name='arrow-right' size={30} color={Cores.branco} />
             </TouchableOpacity>

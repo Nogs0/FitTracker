@@ -72,14 +72,15 @@ class SensorLoggerService {
   }
 
   public async startLogging(dados: JsonBluetooth, onStart?: () => void) {
-    this.fileUri = RNFS.DocumentDirectoryPath + "/" + Date.now().toString() + dados.nomeUsuario + dados.frequenciaHertz + "Hz.csv";
+    this.contadorDeRegistros = -1;
+    this.fileUri = RNFS.DocumentDirectoryPath + "/" + Date.now().toString() + dados.nomeUsuario + dados.nomeAtividade + dados.frequenciaHertz + "Hz.csv";
 
     await RNFS.writeFile(
       this.fileUri,
       "timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n",
       "utf8"
     ).catch(err => console.log("Erro ao criar CSV:", err));
-
+    console.log(dados.frequenciaMilissegundos)
     // Ajusta a taxa de atualização
     Accelerometer.setUpdateInterval(dados.frequenciaMilissegundos);
     Gyroscope.setUpdateInterval(dados.frequenciaMilissegundos);
@@ -114,16 +115,45 @@ class SensorLoggerService {
       const timestamp = Date.now();
       const line = `${timestamp},${d.ax},${d.ay},${d.az},${d.gx},${d.gy},${d.gz},${d.mx},${d.my},${d.mz},${d.barometer}\n`;
       this.buffer.push(line);
-      this.contadorDeRegistros += this.buffer.length;
-      if (this.buffer.length >= 100) {
-        const dataToWrite = this.buffer.join("");
-        this.buffer = [];
-        await RNFS.appendFile(this.fileUri, dataToWrite, "utf8")
-          .catch(err => console.log("Erro ao escrever CSV:", err));
+      if (this.buffer.length >= 100 && !this.isWriting) {
+        this.writeBufferToFile();
       }
-    }, 100);
+    }, dados.frequenciaMilissegundos);
 
     onStart?.();
+  }
+
+  private pushToBuffer() {
+    // Cria uma cópia completa dos últimos valores
+    const d = { ...this.latestData };
+    const timestamp = Date.now();
+    const line = `${timestamp},${d.ax},${d.ay},${d.az},${d.gx},${d.gy},${d.gz},${d.mx},${d.my},${d.mz},${d.barometer}\n`;
+
+    this.buffer.push(line);
+
+    // Se o buffer atingir o tamanho limite, grava em bloco
+    if (this.buffer.length >= 100 && !this.isWriting) {
+      this.writeBufferToFile();
+    }
+  }
+
+  private isWriting = false;
+
+  private async writeBufferToFile() {
+    if (this.isWriting || this.buffer.length === 0) return;
+    this.isWriting = true;
+
+    const dataToWrite = this.buffer.join("");
+    this.buffer = [];
+
+    try {
+      await RNFS.appendFile(this.fileUri, dataToWrite, "utf8");
+      this.contadorDeRegistros += 100;
+    } catch (err) {
+      console.log("Erro ao escrever CSV:", err);
+    } finally {
+      this.isWriting = false;
+    }
   }
 
   public async stopLogging(onStop?: (qtdRegistros: number, fileUri: string) => void) {
@@ -136,16 +166,12 @@ class SensorLoggerService {
     // Salva dados restantes
     this.contadorDeRegistros += this.buffer.length;
     if (this.buffer.length > 0) {
-      const dataToWrite = this.buffer.join("");
-      this.buffer = [];
-      await RNFS.appendFile(this.fileUri, dataToWrite, "utf8")
-        .catch(err => console.log("Erro ao finalizar CSV:", err));
+      this.writeBufferToFile();
     }
     const fileName = this.fileUri;
     const contadorDeRegistros = this.contadorDeRegistros;
     onStop?.(contadorDeRegistros, fileName);
     this.fileUri = "";
-    this.contadorDeRegistros = -1;
   }
 }
 

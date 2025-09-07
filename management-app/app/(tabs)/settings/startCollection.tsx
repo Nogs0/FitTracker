@@ -4,24 +4,24 @@ import { Feather, FontAwesome } from "@expo/vector-icons";
 import { useCallback, useEffect, useState } from "react";
 import { Picker } from '@react-native-picker/picker';
 import { useFocusEffect, useRouter } from 'expo-router';
-import { finalizarColeta, getAtividades, getUsuarios, insertColeta } from "@/data/database";
+import { finalizarColeta, insertColeta, getDB } from "@/data/database";
 import { useNavigationBlock } from '@/contexts/NavigationBlockContext';
 import BluetoothClientService from "@/services/BluetoothClientService";
 import ModalSelectDeviceBluetooh from "@/components/ModalSelectDeviceBluetooh";
 import Cores from "@/styles/cores";
+import { useBluetoothConection } from "@/contexts/BluetoothConectionContext";
 
 export default function StartCollectionScreen() {
 
     const router = useRouter();
     const { setBloqueado } = useNavigationBlock();
+    const { conectado, setConectado } = useBluetoothConection();
 
-    const [modalBluetoohVisible, setModalBluetoothVisible] = useState(true);
+    const [modalBluetoohVisible, setModalBluetoothVisible] = useState(false);
     const [bluetoothDevices, setBluetoothDevices] = useState<any[]>([]);
     const [tentandoConectar, setTentandoConectar] = useState<boolean>(false);
-
     const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
     const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
-    const loading = !listaDeAtividades || !listaDeUsuarios;
     const [listaDeFrequencias] = useState<any[]>([{
         hertz: 10,
         milissegundos: 100
@@ -44,10 +44,10 @@ export default function StartCollectionScreen() {
     const [atividade, setAtividade] = useState<any>();
     const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
     const [idColeta, setIdColeta] = useState<number>();
-
+    const [estabelecendoConexao, setEstabelecendoConexao] = useState<boolean>(false);
     const [corIconeCardColeta, setCorIconeCardColeta] = useState<string>(Cores.cinza);
     const [titleCardColeta, setTitleCardColeta] = useState<string>('Aguardando informações');
-
+    const [loading, setLoading] = useState(true);
 
     useEffect(() => {
         BluetoothClientService.requestBluetoothPermission(() => {
@@ -63,16 +63,33 @@ export default function StartCollectionScreen() {
 
     useFocusEffect(
         useCallback(() => {
+            if (!conectado) {
+                setModalBluetoothVisible(true);
+            }
+
             setUsuario(null);
             setAtividade(null);
-            getUsuarios().then((res) => {
-                setListaDeUsuarios(res);
-            });
-            getAtividades().then((res) => {
-                setListaDeAtividades(res);
-            });
+            setFrequencia(null);
+
+            const carregarDados = async () => {
+                try {
+                    const db = await getDB(); // garante que o banco está inicializado
+                    const dataU = await db.getAllAsync("SELECT * FROM usuarios;");
+                    setListaDeUsuarios(dataU);
+
+                    const dataA = await db.getAllAsync("SELECT * FROM atividades;");
+                    setListaDeAtividades(dataA);
+                } catch (error) {
+                    console.log("Erro ao carregar:", error);
+                } finally {
+                    setLoading(false);
+                }
+            };
+
+            carregarDados();
 
             return () => {
+                setConectado(false);
                 BluetoothClientService.disconnect();
             };
         }, [])
@@ -91,22 +108,45 @@ export default function StartCollectionScreen() {
     const connect = async (device: any) => {
         try {
             setTentandoConectar(true);
-            await BluetoothClientService.connectToDevice(device.address, async (msg) => {
-                if (msg === "coletaIniciada") {
-                    setTitleCardColeta("Em andamento");
-                    setCorIconeCardColeta(Cores.verde);
-                }
-                if (stringCanBeConvertedToJSON(msg)) {
-                    setBloqueado(false);
-                    const convertedJSON = JSON.parse(msg);
-                    await finalizarColeta(convertedJSON.idColeta, Date.now().toString(), true, convertedJSON.qtdDadosColetados);
-                }
-            },
+            await BluetoothClientService.connectToDevice(device.address,
+                // onMessage
+                async (msg) => {
+                    if (msg === "coletaIniciada") {
+                        setEstabelecendoConexao(false);
+                        setColetaEmAndamento(true);
+                        setTitleCardColeta("Em andamento");
+                        setCorIconeCardColeta(Cores.verde);
+                    }
+                    if (stringCanBeConvertedToJSON(msg)) {
+                        const convertedJSON = JSON.parse(msg);
+                        if (convertedJSON.finalizadoPeloServidor) {
+                            setColetaEmAndamento(false);
+                            setCorIconeCardColeta(Cores.laranja);
+                            setTitleCardColeta('Coleta finalizada');
+                        }
+                        console.log(convertedJSON)
+                        setBloqueado(false);
+                        await finalizarColeta(convertedJSON.idColeta, Date.now().toString(), true, convertedJSON.qtdDadosColetados);
+                    }
+                    if (msg === "servidorDesligado") {
+                        Alert.alert("Atenção", "O servidor bluetooth foi desligado.",
+                            [
+                                {
+                                    text: "OK",
+                                    onPress: () => setModalBluetoothVisible(true)
+                                }
+                            ],
+                            { cancelable: false }
+                        );
+                    }
+                },
+                // onConnect
                 () => {
-                    setBloqueado(true);
+                    setConectado(true);
                     setTentandoConectar(false);
                     setModalBluetoothVisible(false);
                 },
+                // onError
                 () => {
                     setTentandoConectar(false);
                     setBloqueado(false);
@@ -125,14 +165,16 @@ export default function StartCollectionScreen() {
     }
 
     const iniciarColeta = async () => {
-        if (!usuario || !atividade || !frequencia)
+        if (!usuario || !atividade || !frequencia) {
+            Alert.alert("Atenção", "Preencha todos os dados!");
             return;
-
+        }
+        setEstabelecendoConexao(true);
         setBloqueado(true);
-        setColetaEmAndamento(true);
         setCorIconeCardColeta(Cores.azul);
         setTitleCardColeta('Estabelecendo conexão');
-        setIdColeta(await insertColeta(usuario?.nome, usuario?.idade, atividade.nome, Date.now().toString()));
+        let idColetaAtual = await insertColeta(usuario?.nome, usuario?.idade, atividade.nome, Date.now().toString())
+        setIdColeta(idColetaAtual);
 
         let mensagem = {
             iniciarColeta: true,
@@ -141,26 +183,31 @@ export default function StartCollectionScreen() {
             nomeAtividade: sanitizeName(atividade.nome),
             frequenciaMilissegundos: frequencia.milissegundos,
             frequenciaHertz: frequencia.hertz,
-            idColeta: idColeta
+            idColeta: idColetaAtual
         };
         const jsonString = JSON.stringify(mensagem);
         BluetoothClientService.sendMessage(jsonString + "\n")
     }
 
     const pararColeta = async () => {
-        if (!usuario || !atividade)
-            return;
-
         setBloqueado(false);
-        setColetaEmAndamento(false);
-        setCorIconeCardColeta(Cores.laranja);
-        setTitleCardColeta('Coleta finalizada');
-        let mensagem = {
-            idColeta: idColeta,
-            pararColeta: true
-        };
-        const jsonString = JSON.stringify(mensagem);
-        BluetoothClientService.sendMessage(jsonString + '\n');
+        if (!coletaEmAndamento) {
+            setTitleCardColeta('Conexão falhou');
+            setCorIconeCardColeta(Cores.vermelho);
+            setEstabelecendoConexao(false);
+            return;
+        } else {
+            setColetaEmAndamento(false);
+            setCorIconeCardColeta(Cores.laranja);
+            setTitleCardColeta('Coleta finalizada');
+
+            let mensagem = {
+                idColeta: idColeta,
+                pararColeta: true
+            };
+            const jsonString = JSON.stringify(mensagem);
+            BluetoothClientService.sendMessage(jsonString);
+        }
     }
 
     if (loading) {
@@ -265,13 +312,17 @@ export default function StartCollectionScreen() {
                                     <FontAwesome name='stop' size={30} color={Cores.branco} />
                                 </TouchableOpacity>
                                 :
-                                <TouchableOpacity style={[stylesStartCollection.buttonStartStopCollection, stylesStartCollection.buttonStartCollection,
-                                (!usuario || !atividade || !frequencia ? stylesGlobal.buttonDisabled : {})]}
-                                    disabled={!usuario || !atividade}
-                                    onPress={iniciarColeta}>
-                                    <Text style={[stylesGlobal.buttonLabel, stylesStartCollection.buttonLabelStartCollection]}>Iniciar coleta</Text>
-                                    <FontAwesome name='play' size={30} color={Cores.branco} />
-                                </TouchableOpacity>
+                                !estabelecendoConexao ?
+                                    <TouchableOpacity style={[stylesStartCollection.buttonStartStopCollection, stylesStartCollection.buttonStartCollection]}
+                                        onPress={iniciarColeta}>
+                                        <Text style={[stylesGlobal.buttonLabel, stylesStartCollection.buttonLabelStartCollection]}>Iniciar coleta</Text>
+                                        <FontAwesome name='play' size={30} color={Cores.branco} />
+                                    </TouchableOpacity> :
+                                    <TouchableOpacity style={[stylesStartCollection.buttonStartStopCollection, stylesStartCollection.buttonStopCollection]}
+                                        onPress={pararColeta}>
+                                        <Text style={[stylesGlobal.buttonLabel, stylesStartCollection.buttonLabelStartCollection]}>Encerrar tentativa</Text>
+                                        <FontAwesome name='stop' size={30} color={Cores.branco} />
+                                    </TouchableOpacity>
                             }
                         </View>
                         <View style={stylesGlobal.card}>

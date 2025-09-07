@@ -1,7 +1,7 @@
 import Cores from '@/styles/cores';
 import { router } from 'expo-router';
 import React from 'react';
-import { View, Text, TouchableOpacity, Modal, StyleSheet, FlatList } from 'react-native';
+import { View, Text, TouchableOpacity, Modal, StyleSheet, FlatList, ActivityIndicator } from 'react-native';
 
 export type ModalSelectDeviceBluetoothProps = {
     visible: boolean,
@@ -20,6 +20,14 @@ export default function ModalSelectDeviceBluetooh(props: ModalSelectDeviceBlueto
             onRequestClose={() => props.setVisible(false)}
         >
             <View style={styles.overlay}>
+                <View style={{
+                    display: (props.tentandoConectar ? 'flex' : 'none'), justifyContent: 'center', alignItems: 'center', position: 'absolute', zIndex: 10000,
+                    backgroundColor: 'rgba(0,0,0,0.7)',
+                    width: '100%', height: '100%'
+                }}>
+                    <ActivityIndicator size={80} color={Cores.ciano} />
+                    <Text style={{color: 'white', fontSize: 20}}>Estabelecendo conexão...</Text>
+                </View>
                 <View style={styles.modalContent}>
                     <Text style={styles.title}>Selecionar dispositivo</Text>
                     <FlatList

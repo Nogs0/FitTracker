@@ -1,13 +1,13 @@
 import { SafeAreaView, StyleSheet, View, Text, TouchableOpacity, Alert, FlatList, ActivityIndicator } from 'react-native';
 import { Feather, FontAwesome } from '@expo/vector-icons';
 import { useEffect, useState } from 'react';
-import RNFS, { FileProtectionKeys } from 'react-native-fs';
 import * as Sharing from 'expo-sharing';
 import Cores from '@/styles/cores';
 import BluetoothServerService from '@/services/BluetoothServerService';
 import SensorLoggerService from "@/services/SensoresService";
 import AsyncStorageService from "@/services/AsyncStorageService";
 import ModalDelete from '@/components/ModalDelete';
+import RNFS from "react-native-fs";
 
 export default function Index() {
 
@@ -45,6 +45,7 @@ export default function Index() {
 
   const toggleConexoes = async () => {
     if (servidorLigado) {
+      BluetoothServerService.sendMessage("servidorDesligado");
       BluetoothServerService.stopServer().then(() => {
         setServidorLigado(false);
         setTextoColeta("Servidor Desligado");
@@ -144,7 +145,7 @@ export default function Index() {
     let index = novosArquivos.findIndex(x => x === fileName);
     novosArquivos.splice(index, 1);
     await AsyncStorageService.salvarArquivos(novosArquivos);
-
+    RNFS.unlink(fileName);
     setArquivosGerados((prev) => {
       let index = prev.findIndex(x => x === fileName);
       prev.splice(index, 1);
@@ -153,6 +154,28 @@ export default function Index() {
 
     setModalDeleteColetaVisible(false);
     setFileToDelete("");
+  }
+
+  const pararColeta = async (idColeta: number) => {
+    console.log(dadosIniciaisParaColeta)
+    console.log(idColeta)
+    SensorLoggerService.stopLogging(async (qtdRegistros, fileName) => {
+      setColetaFinalizada(true);
+      setColetaEmAndamento(false);
+      setTextoColeta("Coleta finalizada");
+      setCorStatusColeta(Cores.laranja);
+      setCorBotaoBluetooth(Cores.vermelho);
+      const jsonEncerrarColeta = {
+        idColeta: idColeta,
+        qtdDadosColetados: qtdRegistros,
+        finalizadoPeloServidor: true
+      }
+      BluetoothServerService.sendMessage(JSON.stringify(jsonEncerrarColeta));
+      const novosArquivos = [...arquivosGerados];
+      novosArquivos.push(fileName);
+      await AsyncStorageService.salvarArquivos(novosArquivos);
+      setArquivosGerados(arquivosGerados => [...arquivosGerados, fileName]);
+    });
   }
 
   if (loading) {
@@ -172,38 +195,38 @@ export default function Index() {
         handleDelete={() => excluirColeta(fileToDelete)}
       />
       <View style={styles.pageTitleContainer}>
-        <Text style={styles.pageTitle}>Coletor de Dados</Text>
+        <Text style={styles.pageTitle}>Coletor de dados</Text>
+        <Text style={styles.subtitleText}>Aplicativo destinado ao monitoramento de sensores</Text>
       </View>
-      <View style={[styles.card, { justifyContent: 'center', height: 80 }]}>
+      <View style={[styles.card, { justifyContent: 'space-evenly', gap: 20, padding: 10 }]}>
         <View style={styles.statusColetaContainer}>
           <FontAwesome name='circle' size={20} color={corStatusColeta} />
           <Text style={styles.titleColetaText}>{textoColeta}</Text>
         </View>
+        <TouchableOpacity style={[styles.botaoBluetooth, { backgroundColor: corBotaoBluetooth }]}
+          onPress={toggleConexoes}
+          disabled={coletaEmAndamento}>
+          <Text style={styles.textoBotaoBluetooth}>{textoBotaoBluetooth}</Text>
+        </TouchableOpacity>
+        {
+          coletaEmAndamento ?
+            <TouchableOpacity style={[styles.botaoBluetooth, { backgroundColor: Cores.vermelho }]}
+              onPress={async () => await pararColeta(dadosIniciaisParaColeta.idColeta)}>
+              <Text style={styles.textoBotaoBluetooth}>Parar coleta</Text>
+            </TouchableOpacity>
+            : <></>
+        }
       </View>
-      <TouchableOpacity style={[styles.botaoBluetooth, { backgroundColor: corBotaoBluetooth }]}
-        onPress={toggleConexoes}
-        disabled={coletaEmAndamento}>
-        <Text style={styles.textoBotaoBluetooth}>{textoBotaoBluetooth}</Text>
-      </TouchableOpacity>
-      {dadosIniciaisParaColeta ?
-        <View style={styles.card}>
-          <View style={styles.titleContainer}>
-            <Feather name='cpu' size={25} color={Cores.azul} />
-            <Text style={styles.titleText}>Frequência utilizada: {dadosIniciaisParaColeta.frequenciaHertz}Hz</Text>
-          </View>
-        </View>
-        : <></>}
-      <View style={styles.card}>
+      <View style={[styles.card, { height: '65%' }]}>
         <View style={styles.titleContainer}>
           <Feather name='file' size={25} color={Cores.laranja} />
-          <View style={{ flexDirection: 'row', justifyContent: 'space-between', flex: 1 }}>
-            <Text style={styles.titleText}>Arquivos das coletas</Text>
-          </View>
+          <Text style={styles.titleText}>Arquivos das coletas</Text>
         </View>
-        <View style={{ margin: 10 }}>
+        <Text style={styles.subtitleText}>Coletas prontas para o compartilhamento</Text>
+        <View style={{ marginTop: 20 }}>
           <FlatList
             data={arquivosGerados}
-            style={{ height: 300 }}
+            style={{ height: '90%' }}
             keyExtractor={(item, index) => index.toString()}
             contentContainerStyle={{ padding: 5, gap: 10 }}
             renderItem={({ item }) => {
@@ -256,9 +279,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start'
   },
   pageTitleContainer: {
-    height: 50,
-    justifyContent: 'center',
-    alignItems: 'center'
+    height: '7%',
   },
   pageTitle: {
     fontSize: 28,
@@ -270,7 +291,7 @@ const styles = StyleSheet.create({
     marginStart: 10
   },
   subtitleText: {
-    fontSize: 18,
+    fontSize: 12,
     opacity: 0.4
   },
   containerInformacoesSensores: {
