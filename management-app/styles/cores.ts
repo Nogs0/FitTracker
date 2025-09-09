@@ -3,6 +3,7 @@ const Cores = {
     azul: "#4e88ed",
     vermelho: "#b83434",
     cinza: "#999999",
+    cinzaClaro: "#e9e9e9",
     verde: "#34b837",
     ciano: "#52a6ac",
     verdeClaro: "#c8ffd6",
