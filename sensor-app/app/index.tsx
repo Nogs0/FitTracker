@@ -213,6 +213,8 @@ export default function Index() {
           <FontAwesome name='circle' size={20} color={corStatusColeta} />
           <Text style={styles.titleColetaText}>{textoColeta}</Text>
         </View>
+        {coletaEmAndamento ?
+          <Text style={{ fontSize: 20, textAlign: `center`, width: '100%', fontWeight: 'bold' }}>Atividade: {dadosIniciaisParaColeta.nomeAtividade}</Text> : <></>}
         <TouchableOpacity style={[styles.botaoBluetooth, { backgroundColor: corBotaoBluetooth }]}
           onPress={toggleConexoes}
           disabled={coletaEmAndamento}>
@@ -220,14 +222,16 @@ export default function Index() {
         </TouchableOpacity>
         {
           coletaEmAndamento ?
-            <TouchableOpacity style={[styles.botaoBluetooth, { backgroundColor: Cores.vermelho }]}
-              onPress={async () => await pararColeta(dadosIniciaisParaColeta.idColeta)}>
-              <Text style={styles.textoBotaoBluetooth}>Parar coleta</Text>
-            </TouchableOpacity>
+            <>
+              <TouchableOpacity style={[styles.botaoBluetooth, { backgroundColor: Cores.vermelho }]}
+                onPress={async () => await pararColeta(dadosIniciaisParaColeta.idColeta)}>
+                <Text style={styles.textoBotaoBluetooth}>Parar coleta</Text>
+              </TouchableOpacity>
+            </>
             : <></>
         }
       </View>
-      <View style={[styles.card, { height: '65%' }]}>
+      <View style={[styles.card, { height: '60%' }]}>
         <View style={styles.titleContainer}>
           <Feather name='file' size={25} color={Cores.laranja} />
           <Text style={styles.titleText}>Arquivos das coletas</Text>
