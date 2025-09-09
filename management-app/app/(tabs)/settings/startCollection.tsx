@@ -10,36 +10,29 @@ import BluetoothClientService from "@/services/BluetoothClientService";
 import ModalSelectDeviceBluetooh from "@/components/ModalSelectDeviceBluetooh";
 import Cores from "@/styles/cores";
 import { useBluetoothConection } from "@/contexts/BluetoothConectionContext";
-
+import Slider from "@react-native-community/slider";
+type SensorResult = {
+    frequenciaAcelerometro: number,
+    frequenciaGiroscopio: number,
+    frequenciaMagnetometro: number,
+    frequenciaBarometro: number
+};
 export default function StartCollectionScreen() {
 
     const router = useRouter();
     const { setBloqueado } = useNavigationBlock();
     const { conectado, setConectado } = useBluetoothConection();
-
+    const [dadosSensores, setDadosSensores] = useState<SensorResult>();
     const [modalBluetoohVisible, setModalBluetoothVisible] = useState(false);
     const [bluetoothDevices, setBluetoothDevices] = useState<any[]>([]);
     const [tentandoConectar, setTentandoConectar] = useState<boolean>(false);
     const [listaDeUsuarios, setListaDeUsuarios] = useState<any[]>([]);
     const [listaDeAtividades, setListaDeAtividades] = useState<any[]>([]);
-    const [listaDeFrequencias] = useState<any[]>([{
-        hertz: 10,
-        milissegundos: 100
-    },
-    {
-        hertz: 15,
-        milissegundos: 66
-    },
-    {
-        hertz: 30,
-        milissegundos: 33
-    },
-    {
-        hertz: 60,
-        milissegundos: 16
-    },]);
-
-    const [frequencia, setFrequencia] = useState<any>();
+    const [frequenciaAcelerometro, setFrequenciaAcelerometro] = useState<number>(0);
+    const [frequenciaGiroscopio, setFrequenciaGiroscopio] = useState<number>(0);
+    const [frequenciaMagnetometro, setFrequenciaMagnetometro] = useState<number>(0);
+    const [frequenciaBarometro, setFrequenciaBarometro] = useState<number>(0);
+    const [sensoresTrancados, setSensoresTrancados] = useState<boolean>(false);
     const [usuario, setUsuario] = useState<any>();
     const [atividade, setAtividade] = useState<any>();
     const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
@@ -69,7 +62,6 @@ export default function StartCollectionScreen() {
 
             setUsuario(null);
             setAtividade(null);
-            setFrequencia(null);
 
             const carregarDados = async () => {
                 try {
@@ -111,24 +103,28 @@ export default function StartCollectionScreen() {
             await BluetoothClientService.connectToDevice(device.address,
                 // onMessage
                 async (msg) => {
-                    if (msg === "coletaIniciada") {
+                    if (stringCanBeConvertedToJSON(msg)) {
+                        const convertedJSON = JSON.parse(msg);
+                        if (convertedJSON.capacidadeSensores) {
+                            setDadosSensores(convertedJSON.sensores);
+                        }
+                        else {
+                            if (convertedJSON.finalizadoPeloServidor) {
+                                setColetaEmAndamento(false);
+                                setCorIconeCardColeta(Cores.laranja);
+                                setTitleCardColeta('Coleta finalizada');
+                            }
+                            setBloqueado(false);
+                            await finalizarColeta(convertedJSON.idColeta, Date.now().toString(), true);
+                        }
+                    }
+                    else if (msg === "coletaIniciada") {
                         setEstabelecendoConexao(false);
                         setColetaEmAndamento(true);
                         setTitleCardColeta("Em andamento");
                         setCorIconeCardColeta(Cores.verde);
                     }
-                    if (stringCanBeConvertedToJSON(msg)) {
-                        const convertedJSON = JSON.parse(msg);
-                        if (convertedJSON.finalizadoPeloServidor) {
-                            setColetaEmAndamento(false);
-                            setCorIconeCardColeta(Cores.laranja);
-                            setTitleCardColeta('Coleta finalizada');
-                        }
-                        console.log(convertedJSON)
-                        setBloqueado(false);
-                        await finalizarColeta(convertedJSON.idColeta, Date.now().toString(), true, convertedJSON.qtdDadosColetados);
-                    }
-                    if (msg === "servidorDesligado") {
+                    else if (msg === "servidorDesligado") {
                         Alert.alert("Atenção", "O servidor bluetooth foi desligado.",
                             [
                                 {
@@ -165,7 +161,7 @@ export default function StartCollectionScreen() {
     }
 
     const iniciarColeta = async () => {
-        if (!usuario || !atividade || !frequencia) {
+        if (!usuario || !atividade) {
             Alert.alert("Atenção", "Preencha todos os dados!");
             return;
         }
@@ -181,8 +177,10 @@ export default function StartCollectionScreen() {
             pararColeta: false,
             nomeUsuario: sanitizeName(usuario.nome),
             nomeAtividade: sanitizeName(atividade.nome),
-            frequenciaMilissegundos: frequencia.milissegundos,
-            frequenciaHertz: frequencia.hertz,
+            frequenciaAcelerometro,
+            frequenciaGiroscopio,
+            frequenciaMagnetometro,
+            frequenciaBarometro,
             idColeta: idColetaAtual
         };
         const jsonString = JSON.stringify(mensagem);
@@ -248,7 +246,6 @@ export default function StartCollectionScreen() {
                                 <FontAwesome name='gears' size={25} color={Cores.verde} />
                                 <Text style={stylesGlobal.titleText}>Configuração da coleta</Text>
                             </View>
-                            <Text style={stylesGlobal.subtitleText}>Selecione usuário, atividade física e frequência</Text>
                             <View style={stylesGlobal.inputsContainer}>
                                 <View style={stylesGlobal.inputContainer}>
                                     <Text style={stylesGlobal.labelInput}>Usuário</Text>
@@ -286,24 +283,104 @@ export default function StartCollectionScreen() {
                                         }
                                     </Picker>
                                 </View>
-                                <View style={stylesGlobal.inputContainer}>
-                                    <Text style={stylesGlobal.labelInput}>Frequência</Text>
-                                    <Picker
-                                        selectedValue={frequencia}
-                                        onValueChange={(itemValue) => setFrequencia(itemValue)}
-                                        style={stylesStartCollection.pickerStyle}
-                                        enabled={!coletaEmAndamento}
-                                    >
-                                        <Picker.Item label="Selecione a frequência" />
-                                        {
-                                            listaDeFrequencias.map((item, i) => {
-                                                return (
-                                                    <Picker.Item key={i} label={`${item.hertz}Hz`} value={item} />
-                                                )
-                                            })
-                                        }
-                                    </Picker>
-                                </View>
+                                {
+                                    dadosSensores ?
+                                        <View style={[stylesGlobal.card, { backgroundColor: Cores.cinzaClaro }]}>
+                                            <View style={{ display: "flex", justifyContent: "space-between", flexDirection: `row` }}>
+                                                <View style={stylesGlobal.titleContainer}>
+                                                    <Feather name="cpu" size={25} color={Cores.azul} />
+                                                    <Text style={stylesGlobal.titleText}>Sensores</Text>
+                                                </View>
+                                                <TouchableOpacity onPress={() => setSensoresTrancados(!sensoresTrancados)}>
+                                                    <Feather
+                                                        name={(sensoresTrancados ? "lock" : "unlock")}
+                                                        size={25}
+                                                        color={(sensoresTrancados ? Cores.vermelho : Cores.verde)} />
+                                                </TouchableOpacity>
+                                            </View>
+                                            <View style={stylesGlobal.inputsContainer}>
+                                                <View>
+                                                    <Text style={stylesGlobal.labelInput}>Acelerômetro: {frequenciaAcelerometro}Hz</Text>
+                                                    <Slider
+                                                        style={{ width: '100%', height: 40 }}
+                                                        minimumValue={0}
+                                                        maximumValue={dadosSensores.frequenciaAcelerometro}
+                                                        step={10}
+                                                        value={frequenciaAcelerometro}
+                                                        minimumTrackTintColor={Cores.verde}
+                                                        maximumTrackTintColor={Cores.cinza}
+                                                        thumbTintColor={Cores.verde}
+                                                        onValueChange={setFrequenciaAcelerometro}
+                                                        disabled={sensoresTrancados}
+                                                    />
+                                                </View>
+                                                <View>
+                                                    <Text style={stylesGlobal.labelInput}>Giroscópio: {frequenciaGiroscopio}Hz</Text>
+                                                    <Slider
+                                                        style={{ width: '100%', height: 40 }}
+                                                        minimumValue={0}
+                                                        maximumValue={dadosSensores.frequenciaGiroscopio}
+                                                        step={10}
+                                                        value={frequenciaGiroscopio}
+                                                        minimumTrackTintColor={Cores.verde}
+                                                        maximumTrackTintColor={Cores.cinza}
+                                                        thumbTintColor={Cores.verde}
+                                                        onValueChange={setFrequenciaGiroscopio}
+                                                        disabled={sensoresTrancados}
+                                                    />
+                                                </View>
+                                                <View>
+                                                    {dadosSensores.frequenciaMagnetometro === 0 ?
+                                                        <>
+                                                            <Text style={stylesGlobal.labelInput}>Magnetômetro:</Text>
+                                                            <Text style={{ height: 40 }}>Não disponível</Text>
+                                                        </>
+                                                        :
+                                                        <>
+                                                            <Text style={stylesGlobal.labelInput}>Magnetômetro: {frequenciaMagnetometro}Hz</Text>
+                                                            <Slider
+                                                                style={{ width: '100%', height: 40 }}
+                                                                minimumValue={0}
+                                                                maximumValue={dadosSensores.frequenciaMagnetometro}
+                                                                step={10}
+                                                                value={frequenciaMagnetometro}
+                                                                minimumTrackTintColor={Cores.verde}
+                                                                maximumTrackTintColor={Cores.cinza}
+                                                                thumbTintColor={Cores.verde}
+                                                                onValueChange={setFrequenciaMagnetometro}
+                                                                disabled={sensoresTrancados}
+                                                            />
+                                                        </>
+                                                    }
+                                                </View>
+                                                <View>
+                                                    {dadosSensores.frequenciaBarometro === 0 ?
+                                                        <>
+                                                            <Text style={stylesGlobal.labelInput}>Barômetro:</Text>
+                                                            <Text style={{ height: 40 }}>Não Disponível</Text>
+                                                        </>
+                                                        :
+                                                        <>
+                                                            <Text style={stylesGlobal.labelInput}>Barômetro: {frequenciaBarometro}Hz</Text>
+                                                            <Slider
+                                                                style={{ width: '100%', height: 40 }}
+                                                                minimumValue={0}
+                                                                maximumValue={dadosSensores.frequenciaBarometro}
+                                                                step={10}
+                                                                value={frequenciaBarometro}
+                                                                minimumTrackTintColor={Cores.verde}
+                                                                maximumTrackTintColor={Cores.cinza}
+                                                                thumbTintColor={Cores.verde}
+                                                                onValueChange={setFrequenciaBarometro}
+                                                                disabled={sensoresTrancados}
+                                                            />
+                                                        </>
+                                                    }
+                                                </View>
+                                            </View>
+                                        </View>
+                                        : <></>
+                                }
                             </View>
                             {coletaEmAndamento ?
                                 <TouchableOpacity style={[stylesStartCollection.buttonStartStopCollection, stylesStartCollection.buttonStopCollection]}

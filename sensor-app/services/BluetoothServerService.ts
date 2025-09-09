@@ -8,8 +8,10 @@ type ListenerCallback = (data: string) => void;
 export type JsonBluetooth = {
   nomeUsuario: string;
   nomeAtividade: string;
-  frequenciaMilissegundos: number;
-  frequenciaHertz: number;
+  frequenciaAcelerometro: number;
+  frequenciaGiroscopio: number;
+  frequenciaBarometro: number;
+  frequenciaMagnetometro: number;
 };
 
 class BluetoothServerService {
@@ -33,10 +35,8 @@ class BluetoothServerService {
         const isConnectGranted = permissions['android.permission.BLUETOOTH_CONNECT'] === PermissionsAndroid.RESULTS.GRANTED;
 
         if (isScanGranted && isConnectGranted) {
-          console.log('Permissões de Bluetooth para Android 12+ concedidas.');
           return true;
         } else {
-          console.log('Uma ou mais permissões de Bluetooth para Android 12+ foram negadas.');
           return false;
         }
       } catch (err) {
@@ -60,10 +60,8 @@ class BluetoothServerService {
         );
 
         if (granted === PermissionsAndroid.RESULTS.GRANTED) {
-          console.log('Permissão de Localização (para Bluetooth) concedida.');
           return true;
         } else {
-          console.log('Permissão de Localização (para Bluetooth) negada.');
           return false;
         }
       } catch (err) {
@@ -89,8 +87,6 @@ class BluetoothServerService {
       const device = await RNBluetoothClassic.accept({ delimiter: "\n" });
       this.connectedDevice = device;
 
-      console.log("Cliente conectado:", device.name, device.address);
-
       if (onConnected) onConnected(device);
 
       // Ouvindo mensagens recebidas
@@ -113,7 +109,6 @@ class BluetoothServerService {
       throw new Error("Nenhum cliente conectado.");
     }
     await this.connectedDevice.write(message + "\n");
-    console.log("Mensagem enviada:", message);
   }
 
   /**
@@ -131,7 +126,6 @@ class BluetoothServerService {
     if (this.connectedDevice) {
       try {
         await this.connectedDevice.disconnect();
-        console.log("Cliente desconectado.");
       } catch {
       }
       this.connectedDevice = null;

@@ -39,8 +39,7 @@ export const initDB = async () => {
         nomeAtividade TEXT NOT NULL,
         horaInicio TEXT NOT NULL,
         horaFim TEXT,
-        conexaoEstabelecida INTEGER,
-        qtdDadosRecebidos TEXT
+        conexaoEstabelecida INTEGER
       );
     `);
   }
@@ -193,18 +192,16 @@ export const updateColeta = async (
 export const finalizarColeta = async (
   id,
   horaFim,
-  conexaoEstabelecida,
-  qtdDadosRecebidos
+  conexaoEstabelecida
 ) => {
   const database = await getDB();
   return await database.runAsync(
     `UPDATE coletas 
-        SET horaFim = ?, conexaoEstabelecida = ?, qtdDadosRecebidos = ?
+        SET horaFim = ?, conexaoEstabelecida = ?
       WHERE id = ?;`,
     [
       horaFim,
       conexaoEstabelecida,
-      qtdDadosRecebidos,
       id
     ]
   );

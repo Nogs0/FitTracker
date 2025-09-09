@@ -6,20 +6,21 @@ import Cores from '@/styles/cores';
 import BluetoothServerService from '@/services/BluetoothServerService';
 import SensorLoggerService from "@/services/SensoresService";
 import AsyncStorageService from "@/services/AsyncStorageService";
+import SensorBenchmarkService from "@/services/SensorBenchmarkService";
 import ModalDelete from '@/components/ModalDelete';
 import RNFS from "react-native-fs";
+import { zip } from "react-native-zip-archive";
 
 export default function Index() {
 
   const [dadosIniciaisParaColeta, setDadosIniciaisParaColeta] = useState<any>();
   const [servidorLigado, setServidorLigado] = useState(false);
-  const [coletaFinalizada, setColetaFinalizada] = useState(false);
   const [textoBotaoBluetooth, setTextoBotaoBluetooth] = useState("Iniciar Bluetooth");
   const [corBotaoBluetooth, setCorBotaoBluetooth] = useState(Cores.azul);
   const [corStatusColeta, setCorStatusColeta] = useState<string>(Cores.cinza);
   const [textoColeta, setTextoColeta] = useState<string>('Servidor Desligado');
   const [coletaEmAndamento, setColetaEmAndamento] = useState<boolean>(false);
-  const [arquivosGerados, setArquivosGerados] = useState<string[]>([]);
+  const [coletasRealizadas, setColetasRealizadas] = useState<string[]>([]);
   const [modalDeleteColetaVisible, setModalDeleteColetaVisible] = useState<boolean>(false);
   const [fileToDelete, setFileToDelete] = useState<string>("");
   const [loading, setLoading] = useState<boolean>(true);
@@ -27,8 +28,8 @@ export default function Index() {
   useEffect(() => {
     SensorLoggerService.requestStoragePermission();
     (async () => {
-      const arquivos = await AsyncStorageService.carregarArquivos();
-      setArquivosGerados(arquivos);
+      const coletas = await AsyncStorageService.carregarColetas();
+      setColetasRealizadas(coletas);
       setLoading(false);
     })();
   }, [])
@@ -65,23 +66,16 @@ export default function Index() {
           console.log("Conectado com:", device.name);
           setCorStatusColeta(Cores.azul);
           setTextoColeta("Conectado");
+          SensorBenchmarkService.medirTodosSensores().then((sensores) => {
+            const obj = {
+              capacidadeSensores: true,
+              sensores
+            }
+            BluetoothServerService.sendMessage(JSON.stringify(obj));
+          });
         },
         (msg) => {
-          if (msg === "encerrarConexao") {
-            BluetoothServerService.stopServer().then(() => {
-              setTextoColeta("Conexao encerrada");
-              setServidorLigado(false);
-              setColetaFinalizada(false);
-              setColetaEmAndamento(false);
-              setCorStatusColeta(Cores.cinza);
-              setTextoBotaoBluetooth("Iniciar Bluetooth");
-              setCorBotaoBluetooth(Cores.azul);
-            })
-            SensorLoggerService.stopLogging(() => {
-              if (coletaEmAndamento)
-                Alert.alert("O arquivo gerado pela coleta em andamento estará na pasta de 'Downloads' do dispositivo.")
-            });
-          }
+
           if (stringCanBeConvertedToJSON(msg)) {
             let convertedJSON = JSON.parse(msg);
             if (convertedJSON.iniciarColeta) {
@@ -95,40 +89,52 @@ export default function Index() {
               });
             }
             if (convertedJSON.pararColeta) {
-              SensorLoggerService.stopLogging(async (qtdRegistros, fileName) => {
-                setColetaFinalizada(true);
+              SensorLoggerService.stopLogging(async (prefixo) => {
                 setColetaEmAndamento(false);
                 setTextoColeta("Coleta finalizada");
                 setCorStatusColeta(Cores.laranja);
                 setCorBotaoBluetooth(Cores.vermelho);
                 const jsonEncerrarColeta = {
-                  idColeta: convertedJSON.idColeta,
-                  qtdDadosColetados: qtdRegistros
-                }
+                  idColeta: convertedJSON.idColeta
+                };
                 BluetoothServerService.sendMessage(JSON.stringify(jsonEncerrarColeta));
-                const novosArquivos = [...arquivosGerados];
-                novosArquivos.push(fileName);
-                await AsyncStorageService.salvarArquivos(novosArquivos);
-                setArquivosGerados(arquivosGerados => [...arquivosGerados, fileName]);
+
+                const novasColetas = [...coletasRealizadas, prefixo];
+                await AsyncStorageService.salvarArquivos(novasColetas);
+                setColetasRealizadas(coletasRealizadas => [...coletasRealizadas, prefixo]);
               });
             }
+          }
+          else if (msg === "encerrarConexao") {
+            BluetoothServerService.stopServer().then(() => {
+              setTextoColeta("Conexao encerrada");
+              setServidorLigado(false);
+              setColetaEmAndamento(false);
+              setCorStatusColeta(Cores.cinza);
+              setTextoBotaoBluetooth("Iniciar Bluetooth");
+              setCorBotaoBluetooth(Cores.azul);
+            })
           }
         });
     }
   }
 
-  const compartilharColeta = async (fileName: string) => {
+  const compartilharColeta = async (prefixo: string) => {
     const isSharingAvailable = await Sharing.isAvailableAsync();
     if (!isSharingAvailable) {
       Alert.alert('Erro', 'O compartilhamento não está disponível neste dispositivo.');
       return;
     }
-
+    const fileName = RNFS.DocumentDirectoryPath + "/" + prefixo;
     try {
-      await Sharing.shareAsync("file://" + fileName, {
-        mimeType: 'text/csv',
-        dialogTitle: 'Compartilhar a coleta',
-      });
+      ziparArquivos([`${fileName}_accelerometer.csv`, `${fileName}_gyroscope.csv`, `${fileName}_magnetometer.csv`, `${fileName}_barometer.csv`], fileName + '.zip')
+        .then(async (arquivoZip) => {
+          await Sharing.shareAsync("file://" + arquivoZip, {
+            mimeType: 'text/csv',
+            dialogTitle: 'Compartilhar a coleta',
+          });
+        })
+        .catch((err) => console.error(err));
     } catch (error) {
       console.error('Erro ao compartilhar o arquivo:', error);
       Alert.alert('Erro', 'Não foi possível compartilhar suas coleções.');
@@ -140,14 +146,17 @@ export default function Index() {
     setFileToDelete(item);
   }
 
-  const excluirColeta = async (fileName: string) => {
-    const novosArquivos = [...arquivosGerados];
-    let index = novosArquivos.findIndex(x => x === fileName);
-    novosArquivos.splice(index, 1);
-    await AsyncStorageService.salvarArquivos(novosArquivos);
-    RNFS.unlink(fileName);
-    setArquivosGerados((prev) => {
-      let index = prev.findIndex(x => x === fileName);
+  const excluirColeta = async (prefixo: string) => {
+    const novasColetasRealizadas = [...coletasRealizadas];
+    let index = novasColetasRealizadas.findIndex(x => x === prefixo);
+    novasColetasRealizadas.splice(index, 1);
+    await AsyncStorageService.salvarArquivos(novasColetasRealizadas);
+    RNFS.unlink(RNFS.DocumentDirectoryPath + "/" + prefixo + '_accelerometer.csv');
+    RNFS.unlink(RNFS.DocumentDirectoryPath + "/" + prefixo + '_gyroscope.csv');
+    RNFS.unlink(RNFS.DocumentDirectoryPath + "/" + prefixo + '_magnetometer.csv');
+    RNFS.unlink(RNFS.DocumentDirectoryPath + "/" + prefixo + '_barometer.csv');
+    setColetasRealizadas((prev) => {
+      let index = prev.findIndex(x => x === prefixo);
       prev.splice(index, 1);
       return [...prev];
     });
@@ -157,25 +166,26 @@ export default function Index() {
   }
 
   const pararColeta = async (idColeta: number) => {
-    console.log(dadosIniciaisParaColeta)
-    console.log(idColeta)
-    SensorLoggerService.stopLogging(async (qtdRegistros, fileName) => {
-      setColetaFinalizada(true);
+    SensorLoggerService.stopLogging(async (prefixo) => {
       setColetaEmAndamento(false);
       setTextoColeta("Coleta finalizada");
       setCorStatusColeta(Cores.laranja);
       setCorBotaoBluetooth(Cores.vermelho);
       const jsonEncerrarColeta = {
         idColeta: idColeta,
-        qtdDadosColetados: qtdRegistros,
         finalizadoPeloServidor: true
       }
       BluetoothServerService.sendMessage(JSON.stringify(jsonEncerrarColeta));
-      const novosArquivos = [...arquivosGerados];
-      novosArquivos.push(fileName);
-      await AsyncStorageService.salvarArquivos(novosArquivos);
-      setArquivosGerados(arquivosGerados => [...arquivosGerados, fileName]);
+      const novasColetasRealizadas = [...coletasRealizadas, prefixo];
+      await AsyncStorageService.salvarArquivos(novasColetasRealizadas);
+      setColetasRealizadas(coletasRealizadas => [...coletasRealizadas, prefixo]);
     });
+  }
+
+  async function ziparArquivos(files: string[], output: string) {
+    const result = await zip(files, output);
+    console.log("Arquivo ZIP criado em:", result);
+    return result;
   }
 
   if (loading) {
@@ -225,7 +235,7 @@ export default function Index() {
         <Text style={styles.subtitleText}>Coletas prontas para o compartilhamento</Text>
         <View style={{ marginTop: 20 }}>
           <FlatList
-            data={arquivosGerados}
+            data={coletasRealizadas}
             style={{ height: '90%' }}
             keyExtractor={(item, index) => index.toString()}
             contentContainerStyle={{ padding: 5, gap: 10 }}
@@ -233,7 +243,7 @@ export default function Index() {
               return (
                 <View style={styles.card}>
                   <View style={{ flexDirection: 'row', justifyContent: 'space-between' }}>
-                    <Text style={{ fontSize: 12, flex: 0.8 }}>{item.split(`/`).pop()}</Text>
+                    <Text style={{ fontSize: 12, flex: 0.8 }}>{item}</Text>
                     <View style={{ flexDirection: 'row', gap: 10, flex: 0.15 }}>
                       <TouchableOpacity onPress={() => handleExcluirColeta(item)}>
                         <Feather name='trash' size={15}></Feather>

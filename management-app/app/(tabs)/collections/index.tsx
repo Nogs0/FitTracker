@@ -67,15 +67,9 @@ export default function CollectionScreen() {
                   <Ionicons name='calendar-clear-outline' size={14}></Ionicons>
                   <Text>{(new Date(Number(item.horaInicio)).toLocaleDateString('pt-Br'))}</Text>
                 </View>
-              </View>
-              <View style={stylesCollections.containerCardsRelatorio}>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioRegistros]}>
-                  <Text>{item.qtdDadosRecebidos ?? 0}</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Registros</Text>
-                </View>
-                <View style={[stylesCollections.cardRelatorio, stylesCollections.cardRelatorioTempo]}>
-                  <Text>{Math.floor((Number(item.horaFim) - Number(item.horaInicio)) / 1000)}s</Text>
-                  <Text style={stylesCollections.labelCardRelatorio}>Segundos</Text>
+                <View style={stylesCollections.containerTextDateTime}>
+                  <Ionicons name='timer-outline' size={14}></Ionicons>
+                  <Text>{Math.floor((Number(item.horaFim) - Number(item.horaInicio)) / 1000)} Segundo(s)</Text>
                 </View>
               </View>
             </>
@@ -146,7 +140,7 @@ const stylesCollections = StyleSheet.create({
   },
   cardRelatorio: {
     borderRadius: 5,
-    width: '48%',
+    width: '100%',
     paddingVertical: 5,
     justifyContent: 'center',
     alignItems: 'center'

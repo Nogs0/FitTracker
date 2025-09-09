@@ -14,6 +14,12 @@ class SensorLoggerService {
     barometer: 0,
   };
   private contadorDeRegistros = -1;
+  private contadorDeRegistrosAcelerometro = -1;
+  private contadorDeRegistrosGiroscopio = -1;
+  private basePath = RNFS.DocumentDirectoryPath;
+  private buffers: Record<string, string[]> = {};
+  private timer: number | null = null;
+  private prefixoArquivo = "";
 
   public async requestStoragePermission() {
     try {
@@ -72,106 +78,130 @@ class SensorLoggerService {
   }
 
   public async startLogging(dados: JsonBluetooth, onStart?: () => void) {
-    this.contadorDeRegistros = -1;
-    this.fileUri = RNFS.DocumentDirectoryPath + "/" + Date.now().toString() + dados.nomeUsuario + dados.nomeAtividade + dados.frequenciaHertz + "Hz.csv";
+    this.contadorDeRegistrosAcelerometro = -1;
+    this.contadorDeRegistrosGiroscopio = -1;
+    const dataAtual = Date.now().toString();
+    this.prefixoArquivo = `${dataAtual}${dados.nomeUsuario}${dados.nomeAtividade}`;
+    await this.createFile(`${this.prefixoArquivo}_accelerometer`, "timestamp,ax,ay,az," + dados.frequenciaAcelerometro + "Hz");
+    await this.createFile(`${this.prefixoArquivo}_gyroscope`, "timestamp,gx,gy,gz," + dados.frequenciaGiroscopio + "Hz");
+    await this.createFile(`${this.prefixoArquivo}_magnetometer`, "timestamp,mx,my,mz," + dados.frequenciaMagnetometro + "Hz");
+    await this.createFile(`${this.prefixoArquivo}_barometer`, "timestamp,pressure," + dados.frequenciaBarometro + "Hz");
 
-    await RNFS.writeFile(
-      this.fileUri,
-      "timestamp,ax,ay,az,gx,gy,gz,mx,my,mz,barometer\n",
-      "utf8"
-    ).catch(err => console.log("Erro ao criar CSV:", err));
-    console.log(dados.frequenciaMilissegundos)
-    // Ajusta a taxa de atualização
-    Accelerometer.setUpdateInterval(dados.frequenciaMilissegundos);
-    Gyroscope.setUpdateInterval(dados.frequenciaMilissegundos);
-    Magnetometer.setUpdateInterval(dados.frequenciaMilissegundos);
-    Barometer.setUpdateInterval(dados.frequenciaMilissegundos);
+    if (dados.frequenciaAcelerometro) {
+      let taxaASerUtilizada = this.conversorHzEmMs(dados.frequenciaAcelerometro);
+      if (taxaASerUtilizada < 12 && taxaASerUtilizada > 5)
+        taxaASerUtilizada = 5;
+      else
+        taxaASerUtilizada = 1; //Obriga o limite do android
+      Accelerometer.setUpdateInterval(taxaASerUtilizada);
+      this.subscriptions.push(
+        Accelerometer.addListener(({ x, y, z }) => {
+          this.contadorDeRegistrosAcelerometro++;
+          this.buffers[`${this.prefixoArquivo}_accelerometer`].push(
+            `${Date.now()},${x},${y},${z}\n`
+          );
+        })
+      );
+    }
 
-    // Adiciona listeners
-    this.subscriptions = [
-      Accelerometer.addListener(({ x, y, z }) => {
-        this.latestData.ax = x;
-        this.latestData.ay = y;
-        this.latestData.az = z;
-      }),
-      Gyroscope.addListener(({ x, y, z }) => {
-        this.latestData.gx = x;
-        this.latestData.gy = y;
-        this.latestData.gz = z;
-      }),
-      Magnetometer.addListener(({ x, y, z }) => {
-        this.latestData.mx = x;
-        this.latestData.my = y;
-        this.latestData.mz = z;
-      }),
-      Barometer.addListener(({ pressure }) => {
-        this.latestData.barometer = pressure;
-      }),
-    ];
+    if (dados.frequenciaGiroscopio) {
+      let taxaASerUtilizada = this.conversorHzEmMs(dados.frequenciaGiroscopio);
+      if (taxaASerUtilizada < 12 && taxaASerUtilizada > 5)
+        taxaASerUtilizada = 5;
+      else
+        taxaASerUtilizada = 1; //Obriga o limite do android
+      Gyroscope.setUpdateInterval(taxaASerUtilizada);
+      this.subscriptions.push(
+        Gyroscope.addListener(({ x, y, z }) => {
+          this.contadorDeRegistrosGiroscopio++;
+          this.buffers[`${this.prefixoArquivo}_gyroscope`].push(
+            `${Date.now()},${x},${y},${z}\n`
+          );
+        })
+      );
+    }
 
-    // Timer para gravação periódica
-    this.intervalRef = setInterval(async () => {
-      const d = this.latestData;
-      const timestamp = Date.now();
-      const line = `${timestamp},${d.ax},${d.ay},${d.az},${d.gx},${d.gy},${d.gz},${d.mx},${d.my},${d.mz},${d.barometer}\n`;
-      this.buffer.push(line);
-      if (this.buffer.length >= 100 && !this.isWriting) {
-        this.writeBufferToFile();
+    if (dados.frequenciaMagnetometro) {
+      let taxaASerUtilizada = this.conversorHzEmMs(dados.frequenciaMagnetometro);
+      if (taxaASerUtilizada < 12 && taxaASerUtilizada > 5)
+        taxaASerUtilizada = 5;
+      else
+        taxaASerUtilizada = 1; //Obriga o limite do android
+      Magnetometer.setUpdateInterval(taxaASerUtilizada);
+      this.subscriptions.push(
+        Magnetometer.addListener(({ x, y, z }) => {
+          this.buffers[`${this.prefixoArquivo}_magnetometer`].push(
+            `${Date.now()},${x},${y},${z}\n`
+          );
+        })
+      );
+    }
+
+    if (dados.frequenciaBarometro) {
+      let taxaASerUtilizada = this.conversorHzEmMs(dados.frequenciaBarometro);
+      if (taxaASerUtilizada < 12 && taxaASerUtilizada > 5)
+        taxaASerUtilizada = 5;
+      else
+        taxaASerUtilizada = 1; //Obriga o limite do android
+      Barometer.setUpdateInterval(taxaASerUtilizada);
+      this.subscriptions.push(
+        Barometer.addListener(({ pressure }) => {
+          this.buffers[`${this.prefixoArquivo}_barometer`].push(
+            `${Date.now()},${pressure}\n`
+          );
+        })
+      );
+    }
+
+    this.timer = setInterval(async () => {
+      for (const [fileName, data] of Object.entries(this.buffers)) {
+        if (data.length > 0) {
+          const chunk = data.join("");
+          this.buffers[fileName] = [];
+          await RNFS.appendFile(`${this.basePath}/${fileName}.csv`, chunk, "utf8")
+            .catch(err => console.log("Erro ao escrever:", err));
+        }
       }
-    }, dados.frequenciaMilissegundos);
+    }, 200);
 
     onStart?.();
   }
 
-  private pushToBuffer() {
-    // Cria uma cópia completa dos últimos valores
-    const d = { ...this.latestData };
-    const timestamp = Date.now();
-    const line = `${timestamp},${d.ax},${d.ay},${d.az},${d.gx},${d.gy},${d.gz},${d.mx},${d.my},${d.mz},${d.barometer}\n`;
-
-    this.buffer.push(line);
-
-    // Se o buffer atingir o tamanho limite, grava em bloco
-    if (this.buffer.length >= 100 && !this.isWriting) {
-      this.writeBufferToFile();
-    }
+  private async createFile(name: string, header: string) {
+    const filePath = `${this.basePath}/${name}.csv`;
+    await RNFS.writeFile(filePath, header + "\n", "utf8");
+    this.buffers[name] = [];
+    return filePath;
   }
 
-  private isWriting = false;
-
-  private async writeBufferToFile() {
-    if (this.isWriting || this.buffer.length === 0) return;
-    this.isWriting = true;
-
-    const dataToWrite = this.buffer.join("");
-    this.buffer = [];
-
-    try {
-      await RNFS.appendFile(this.fileUri, dataToWrite, "utf8");
-      this.contadorDeRegistros += 100;
-    } catch (err) {
-      console.log("Erro ao escrever CSV:", err);
-    } finally {
-      this.isWriting = false;
-    }
+  private conversorHzEmMs(hertz: number) {
+    return Math.round(1000 / hertz);
   }
 
-  public async stopLogging(onStop?: (qtdRegistros: number, fileUri: string) => void) {
-    this.intervalRef && clearInterval(this.intervalRef);
+  public async stopLogging(onStop?: (prefixo: string) => void) {
+    // Salvar qualquer dado residual antes de encerrar
+    for (const [fileName, data] of Object.entries(this.buffers)) {
+      if (data.length > 0) {
+        const chunk = data.join("");
+        this.buffers[fileName] = [];
+        await RNFS.appendFile(`${this.basePath}/${fileName}.csv`, chunk, "utf8")
+          .catch(err => console.log("Erro ao salvar residual:", err));
+      }
+    }
 
-    // Cancela listeners
-    this.subscriptions.forEach((s) => s.remove());
+    // Cancelar listeners
+    this.subscriptions.forEach(s => s.remove());
     this.subscriptions = [];
 
-    // Salva dados restantes
-    this.contadorDeRegistros += this.buffer.length;
-    if (this.buffer.length > 0) {
-      this.writeBufferToFile();
+    // Cancelar timer
+    if (this.timer) {
+      clearInterval(this.timer);
+      this.timer = null;
     }
-    const fileName = this.fileUri;
-    const contadorDeRegistros = this.contadorDeRegistros;
-    onStop?.(contadorDeRegistros, fileName);
-    this.fileUri = "";
+
+    console.log('Acelerômetro: ', this.contadorDeRegistrosAcelerometro);
+    console.log('Giroscópio: ', this.contadorDeRegistrosGiroscopio);
+    onStop?.(this.prefixoArquivo);
   }
 }
 
