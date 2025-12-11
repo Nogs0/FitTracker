@@ -182,6 +182,58 @@ export default function Index() {
     });
   }
 
+  async function extrairTodasAsColetas() {
+    try {
+      // 1. Definição de caminhos
+      const sourceDir = RNFS.DocumentDirectoryPath;
+      const tempFolder = `${RNFS.CachesDirectoryPath}/export_temp`;
+      const zipPath = `${RNFS.CachesDirectoryPath}/minhasColetas.zip`;
+
+      // 2. Criar pasta temporária limpa (se existir, apaga antes)
+      if (await RNFS.exists(tempFolder)) {
+        await RNFS.unlink(tempFolder);
+      }
+      await RNFS.mkdir(tempFolder);
+
+      // 3. Ler diretório e filtrar APENAS CSVs (evita enviar lixo do sistema)
+      const files = await RNFS.readDir(sourceDir);
+      const csvFiles = files.filter((f) => f.name.endsWith('.csv'));
+
+      if (csvFiles.length === 0) {
+        Alert.alert('Aviso', 'Nenhum arquivo CSV encontrado para exportar.');
+        return;
+      }
+
+      // 4. Copiar os CSVs para a pasta temporária
+      const copyPromises = csvFiles.map((file) => {
+        return RNFS.copyFile(file.path, `${tempFolder}/${file.name}`);
+      });
+
+      await Promise.all(copyPromises);
+
+      // 5. Criar o arquivo ZIP
+      const zipPathCriado = await zip(tempFolder, zipPath);
+
+      // 6. Compartilhar o ZIP
+      await Sharing.shareAsync(`file://${zipPathCriado}`,
+        {
+          mimeType: 'application/zip',
+          dialogTitle: 'Compartilhar todos os arquivos', // Nome sugerido para iOS/alguns Androids
+        });
+
+      // 7. Limpeza
+      await RNFS.unlink(tempFolder);
+      await RNFS.unlink(zipPath);
+
+    } catch (error) {
+      // Verifica se o erro foi apenas o usuário cancelando o menu de share
+      if (error) {
+        console.error('Erro na exportação:', error);
+        Alert.alert('Erro', 'Falha ao criar ou enviar o arquivo ZIP.');
+      }
+    }
+  }
+
   async function ziparArquivos(files: string[], output: string) {
     const result = await zip(files, output);
     console.log("Arquivo ZIP criado em:", result);
@@ -232,9 +284,16 @@ export default function Index() {
         }
       </View>
       <View style={[styles.card, { height: '60%' }]}>
-        <View style={styles.titleContainer}>
-          <Feather name='file' size={25} color={Cores.laranja} />
-          <Text style={styles.titleText}>Arquivos das coletas</Text>
+        <View style={styles.headerContainer}>
+          <View style={styles.titleContainer}>
+            <Feather name='file' size={25} color={Cores.laranja} />
+            <Text style={styles.titleText}>Arquivos das coletas</Text>
+          </View>
+          <View>
+            <TouchableOpacity onPress={() => extrairTodasAsColetas()}>
+              <Feather name='download' size={25} color={Cores.verde} />
+            </TouchableOpacity>
+          </View>
         </View>
         <Text style={styles.subtitleText}>Coletas prontas para o compartilhamento</Text>
         <View style={{ marginTop: 20 }}>
@@ -290,7 +349,11 @@ const styles = StyleSheet.create({
   },
   titleContainer: {
     flexDirection: 'row',
-    alignItems: 'flex-start'
+    alignItems: 'flex-start',
+  },
+  headerContainer: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
   },
   pageTitleContainer: {
     height: '7%',
